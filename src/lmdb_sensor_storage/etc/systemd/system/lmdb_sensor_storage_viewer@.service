@@ -1,0 +1,14 @@
+[Unit]
+Description=LMDB sensor storage viewer
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -u -m lmdb_sensor_storage --settings-file %I
+
+# Restart every >2 seconds to avoid StartLimitInterval failure
+RestartSec=10
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+

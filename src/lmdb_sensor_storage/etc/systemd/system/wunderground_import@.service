@@ -1,0 +1,18 @@
+[Unit]
+Description=Wunderground import
+After=network.target
+
+[Service]
+Type=oneshot
+User=USERNAME
+Environment=WUNDERGROUND_API_KEY=xxx
+
+ExecStart=/usr/bin/python3 -u -m lmdb_sensor_storage.import_wunderground --mdb-filename %S/lmbd_sensor_storage.mdb --station-id %I
+
+# Restart every >2 seconds to avoid StartLimitInterval failure
+RestartSec=10
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+

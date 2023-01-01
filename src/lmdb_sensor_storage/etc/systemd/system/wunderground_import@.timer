@@ -1,0 +1,11 @@
+[Unit]
+Description=Wunderground import timer
+
+[Timer]
+OnCalendar=*-*-* 23:56:00
+OnCalendar=*-*-* 18:53:00
+Unit=wunderground_import@%i.service
+
+
+[Install]
+WantedBy=multi-user.target
