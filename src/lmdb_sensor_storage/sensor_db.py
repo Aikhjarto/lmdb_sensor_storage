@@ -275,7 +275,7 @@ def try_float(x):
 
 
 def guess_format_string(d) -> str:
-    if isinstance(d, SupportsFloat) or try_float(d):
+    if try_float(d):
         return 'f'
 
     if isinstance(d, dict):
