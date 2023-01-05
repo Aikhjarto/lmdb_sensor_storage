@@ -8,3 +8,4 @@ paho-mqtt
 PyYAML
 requests
 flatdict
+regex
