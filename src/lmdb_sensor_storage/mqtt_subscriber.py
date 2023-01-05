@@ -56,7 +56,8 @@ def on_message(mqtt_client, userdata, message):
         for sensor_name in data.keys():
             for date, value in zip(dates, data[sensor_name]):
                 if date.year > 2016:
-                    Sensor(userdata['mdb_filename'], sensor_name).write_value(date, value, only_if_value_changed=True)
+                    s = Sensor(userdata['mdb_filename'], sensor_name)
+                    s.write_value(date, value, only_if_value_changed=True)
 
     elif regex.match(r'tele\/.+\/SENSOR', message.topic):
         # tasmaota sensor data, see https://tasmota.github.io/docs/MQTT/#examples
@@ -67,7 +68,9 @@ def on_message(mqtt_client, userdata, message):
         #  "DS18B20-3": {"Id": "01212FA56810", "Temperature": 22.8},
         #  "BME280": {"Temperature": 23.6, "Humidity": 34.5, "DewPoint": 7.0, "Pressure": 967.2},
         #  "MHZ19B": {"Model": "B", "CarbonDioxide": 645, "Temperature": 27.0},
-        #  "AS3935": {"Event": 0, "Distance": 0, "Energy": 0, "Stage": 9}, "PressureUnit": "hPa", "TempUnit": "C"}
+        #  "AS3935": {"Event": 0, "Distance": 0, "Energy": 0, "Stage": 9},
+        #  "PressureUnit": "hPa",
+        #  "TempUnit": "C"
         # }
 
         try:
@@ -77,35 +80,38 @@ def on_message(mqtt_client, userdata, message):
             return
 
         date = fromisoformat(data.pop('Time'))
+        if date.year<2016:
+            date=datetime.now()
+
         for sensor in data.keys():
             if sensor.startswith('DS18B20'):
                 # tasmato names for DS18B20-X are not consistent, thus use unique sensor id sensor name
                 sensor_name = "DS18B20-" + data[sensor]['Id']
                 value = data[sensor]['Temperature']
-                Sensor(userdata['mdb_filename'], sensor_name).write_value(date, float(value),
-                                                                          only_if_value_changed=True)
+                s = Sensor(userdata['mdb_filename'], sensor_name)
+                s.write_value(date, float(value),  only_if_value_changed=True)
             elif sensor.startswith('AS3935') and int(data[sensor]['Event']) > 0:
                 # don't log no-lightning-events
                 sensor_name = message.topic.split('/')[1] + '_' + sensor
-                Sensor(userdata['mdb_filename'], sensor_name).write_value(date, (float(data[sensor]['Event']),
-                                                                                 float(data[sensor]['Distance']),
-                                                                                 float(data[sensor]['Energy']),
-                                                                                 float(data[sensor]['Stage'])),
-                                                                          only_if_value_changed=True)
+                s = Sensor(userdata['mdb_filename'], sensor_name)
+                s.write_value(date,
+                              (float(data[sensor]['Event']),
+                               float(data[sensor]['Distance']),
+                               float(data[sensor]['Energy']),
+                               float(data[sensor]['Stage'])),
+                              only_if_value_changed=True)
 
-            else:
+            elif callable(getattr(data[sensor], 'items', None)):
                 # TODO: don't split up values to multiple sensors, since a timestamp is then generated for each value
                 #   Better: store as struct/json and use Sensor.metadata['field_names']
-
-                if callable(getattr(data[sensor], 'items', None)):
-                    sensor_name = message.topic.split('/')[1] + '_' + sensor + '_'
-                    for key, value in data[sensor].items():
-                            Sensor(userdata['mdb_filename'], sensor_name + key).write_value(date, value,
-                                                                                      only_if_value_changed=True)
-                else:
-                    sensor_name = message.topic.split('/')[1] + '_' + sensor
-                    Sensor(userdata['mdb_filename'], sensor_name).write_value(date, data[sensor],
-                                                                                    only_if_value_changed=True)
+                sensor_name = message.topic.split('/')[1] + '_' + sensor + '_'
+                for key, value in data[sensor].items():
+                    s = Sensor(userdata['mdb_filename'], sensor_name + key)
+                    s.write_value(date, value, only_if_value_changed=True)
+            else:
+                sensor_name = message.topic.split('/')[1] + '_' + sensor
+                s = Sensor(userdata['mdb_filename'], sensor_name)
+                s. write_value(date, data[sensor], only_if_value_changed=True)
 
     else:
         msg = message.payload.decode()
@@ -134,7 +140,8 @@ def on_message(mqtt_client, userdata, message):
                 data = np.fromstring(msg[1:-1], dtype=float, sep=',')
 
         if date is not None and data is not None:
-            Sensor(userdata['mdb_filename'], message.topic).write_value(date, data, only_if_value_changed=True)
+            s = Sensor(userdata['mdb_filename'], message.topic)
+            s.write_value(date, data, only_if_value_changed=True)
 
 
 if __name__ == '__main__':
