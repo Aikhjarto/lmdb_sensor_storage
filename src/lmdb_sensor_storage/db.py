@@ -444,7 +444,7 @@ class TimestampBytesDB(LMDBDict):
     def __repr__(self):
         return super().__repr__() + f' from {self.get_first_timestamp()} to {self.get_last_timestamp()}'
 
-    def write_value(self, date: datetime, value, only_if_value_changed=True):
+    def write_value(self, date: datetime, value, only_if_value_changed=False):
         """
         Write a new value at date.
         If date already existed, the value is updated.
