@@ -25,7 +25,7 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument('--mdb-filename', type=str, required=True)
 
-    parser.add_argument('--sensor-name', type=str, required=True)
+    parser.add_argument('--sensor-name', type=str, required=True, action='append')
 
     return parser
 
@@ -49,22 +49,27 @@ if __name__ == '__main__':
             print(f'UNKNOWN - File {args.mdb_filename} is not readable')
             exit(UNKNOWN)
 
-    timestamp = Sensor(args.mdb_filename, args.sensor_name).get_last_timestamp()
-    if not timestamp:
-        print(f'UNKNOWN - No data found for sensor {args.sensor_name} in file {args.mdb_filename}')
-        exit(UNKNOWN)
-    else:
-        # https://assets.nagios.com/downloads/nagioscore/docs/nagioscore/3/en/pluginapi.html
-        SERVICEPERFDATA = f'|age={(datetime.now()-timestamp).seconds}s;' \
-                          f'{timedelta_warning.seconds};{timedelta_critical.seconds}'
-        SERVICEOUTPUT = f'Last sensor update: {timestamp}'
-        if timestamp < datetime.now()-abs(timedelta_critical):
-            print(f'CRITICAL - ' + SERVICEOUTPUT + SERVICEPERFDATA)
-            exit(CRITICAL)
-        elif timestamp < datetime.now()-abs(timedelta_warning):
-            print(f'WARNING - ' + SERVICEOUTPUT + SERVICEPERFDATA)
-            print('WARNING - ')
-            exit(WARNING)
+    timestamp = datetime.min
+    for sensor_name in args.sensor_name:
+        _timestamp = Sensor(args.mdb_filename, sensor_name).get_last_timestamp()
+        if not _timestamp:
+            print(f'UNKNOWN - No data found for sensor {args.sensor_name} in file {args.mdb_filename}')
+            exit(UNKNOWN)
         else:
-            print(f'OK - ' + SERVICEOUTPUT + SERVICEPERFDATA)
-            exit(OK)
+            timestamp = max(timestamp, _timestamp)
+
+
+    # https://assets.nagios.com/downloads/nagioscore/docs/nagioscore/3/en/pluginapi.html
+    SERVICEPERFDATA = f'|age={(datetime.now()-timestamp).seconds}s;' \
+                      f'{timedelta_warning.seconds};{timedelta_critical.seconds}'
+    SERVICEOUTPUT = f'Last sensor update: {timestamp}'
+    if timestamp < datetime.now()-abs(timedelta_critical):
+        print(f'CRITICAL - ' + SERVICEOUTPUT + SERVICEPERFDATA)
+        exit(CRITICAL)
+    elif timestamp < datetime.now()-abs(timedelta_warning):
+        print(f'WARNING - ' + SERVICEOUTPUT + SERVICEPERFDATA)
+        print('WARNING - ')
+        exit(WARNING)
+    else:
+        print(f'OK - ' + SERVICEOUTPUT + SERVICEPERFDATA)
+        exit(OK)
