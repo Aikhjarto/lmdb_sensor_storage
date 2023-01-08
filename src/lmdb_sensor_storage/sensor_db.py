@@ -1,12 +1,14 @@
 from datetime import datetime
 import struct
 import os
-from lmdb_sensor_storage.db import manager, StringYamlDB, TimestampBytesDB, TimestampStringDB, TimestampYAMLDB, StringRegexpDB
+from lmdb_sensor_storage.db import manager, StringYamlDB, TimestampBytesDB, TimestampStringDB, TimestampYAMLDB, \
+    StringRegexpDB
 from lmdb_sensor_storage._parser import as_datetime
 from lmdb_sensor_storage._packer import BytesPacker, StringPacker, JSONPacker, FloatPacker, \
     StructPacker
 from typing import SupportsFloat, Mapping, List
 import logging
+
 logger = logging.getLogger('lmdb_sensor_storage.storage')
 
 
@@ -166,11 +168,11 @@ class Sensors(Mapping):
             for key, val in txn.cursor():
                 key_str = key.decode()
                 if key_str.startswith('data_'):
-                    if what=='values':
+                    if what == 'values':
                         yield Sensor(self._mdb_filename, key_str[5:])
-                    elif what=='keys':
+                    elif what == 'keys':
                         yield key_str[5:]
-                    elif what=='items':
+                    elif what == 'items':
                         yield key_str[5:], Sensor(self._mdb_filename, key_str[5:])
                     else:
                         raise NotImplementedError
@@ -180,7 +182,7 @@ class Sensors(Mapping):
             raise TypeError
         return Sensor(self._mdb_filename, name)
 
-    def __iter__(self) :
+    def __iter__(self):
         return self._get(what='keys')
 
     def keys(self) -> List[str]:
@@ -216,8 +218,6 @@ class Sensors(Mapping):
                 d_s['meta'] = meta.as_dict()
             d[sensor_name] = d_s
         return d
-
-
 
 
 class LMDBSensorStorage(Sensors):

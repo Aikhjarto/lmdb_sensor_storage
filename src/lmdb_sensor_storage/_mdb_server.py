@@ -176,7 +176,8 @@ class MDBRequestHandler(HTTPRequestHandler):
             logger.info('Requested sensor name "%s" is not in database %s\n'
                         'Sensors in database are: %s',
                         sensor_names[0], self.server.sensor_storage.mdb_filename, valid_sensor_names)
-            msg = f'Requested sensor name "{sensor_names[0]}" is not in database {self.server.sensor_storage.mdb_filename}\n' \
+            msg = f'Requested sensor name "{sensor_names[0]}" is not in ' \
+                  f'database {self.server.sensor_storage.mdb_filename}\n' \
                   f'Valid sensor names are: {valid_sensor_names}.'
             self.send_error(422, message=msg)
             return False
@@ -376,9 +377,9 @@ class MDBRequestHandler(HTTPRequestHandler):
 
             div_inputs = '<div id="id_div_inputs">{}</div>'.format('\n'.join((
                                                                     range_select_form,
-                                                                    '<div id="id_div_notes">'+delete_note_form,
-                                                                    add_note_form+'</div>',
-                                                                    )))
+                '<div id="id_div_notes">' + delete_note_form,
+                add_note_form + '</div>',
+            )))
 
             # link to stats.json
             div_links = '<div><a target="blank" href="stat.json">Database overview</a></div>'
@@ -469,7 +470,7 @@ class MDBRequestHandler(HTTPRequestHandler):
     def do_POST(self):
         if self.path == '/add_sample':
             timestamp, value, sensor_name = self.rfile.read().decode().split(';', 3)
-            self.server.sensor_storage[sensor_name][fromisoformat(timestamp)]=float(value)
+            self.server.sensor_storage[sensor_name][fromisoformat(timestamp)] = float(value)
         elif self.path.startswith('/time'):
 
             payload = self.rfile.read(int(self.headers.get('content-length')))

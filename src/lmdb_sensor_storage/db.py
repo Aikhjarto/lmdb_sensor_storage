@@ -11,7 +11,7 @@ from lmdb_sensor_storage._packer import BytesPacker, StringPacker, JSONPacker, D
 from lmdb_sensor_storage._parser import as_datetime
 
 logger = logging.getLogger('lmdb_sensor_storage.db')
-
+_T = TypeVar('_T')
 
 class Manager:
     """
@@ -52,7 +52,7 @@ class Manager:
         #     logger.debug('Reusing handle for database %s', mdb_filename)
         return self.handles[mdb_filename]
 
-    def get_db(self,mdb_filename, db_name):
+    def get_db(self, mdb_filename, db_name):
         """
         Parameters
         ----------
@@ -212,15 +212,15 @@ class LMDBDict(MutableMapping):
             with manager.get_transaction(self._mdb_filename, self._db_name) as txn:
                 c = txn.cursor()
                 if c.first():
-                    if what=='keys':
+                    if what == 'keys':
                         yield self._key_packer.unpack(c.key())
                         while c.next():
                             yield self._key_packer.unpack(c.key())
-                    elif what=='values':
+                    elif what == 'values':
                         yield self._value_packer.unpack(c.value())
                         while c.next():
                             yield self._value_packer.unpack(c.value())
-                    elif what=='items':
+                    elif what == 'items':
                         yield self._key_packer.unpack(c.key()), self._value_packer.unpack(c.value())
                         while c.next():
                             yield self._key_packer.unpack(c.key()), self._value_packer.unpack(c.value())
@@ -250,7 +250,7 @@ class LMDBDict(MutableMapping):
     def as_dict(self):
         d = {}
         for key, val in self.items():
-            d[key]=val
+            d[key] = val
         return d
 
     def update(self, other: Union[Mapping, Sequence[Tuple[Any, Any]]], **kwargs: int) -> None:
@@ -262,7 +262,7 @@ class LMDBDict(MutableMapping):
             _iter = other
         else:
             _iter = kwargs.items()
-        
+
         result = True
         with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
             for date, value in _iter:
@@ -390,38 +390,46 @@ class StringYamlDB(LMDBDict):
 
 
 def timestamp_chunker_left(x: Sequence[datetime]) -> Sequence[datetime]:
-    return [x[0],]
+    return [x[0], ]
+
 
 def timestamp_chunker_right(x: Sequence[datetime]) -> Sequence[datetime]:
-    return [x[-1],]
+    return [x[-1], ]
+
 
 def timestamp_chunker_center(x: Sequence[datetime]) -> Sequence[datetime]:
-    if len(x)>1:
-        return [x[0]+(x[-1]-x[0])/2,]
+    if len(x) > 1:
+        return [x[0] + (x[-1] - x[0]) / 2, ]
     else:
-        return [x[0],]
+        return [x[0], ]
+
 
 def value_chunker_min(x: Sequence[_T]) -> Sequence[_T]:
-    return [min(*x),]
+    return [min(*x), ]
+
 
 def value_chunker_max(x: Sequence[_T]) -> Sequence[_T]:
-    return [max(*x),]
+    return [max(*x), ]
+
 
 def value_chunker_median(x: Sequence[_T]) -> Sequence[_T]:
-    return [np.median(x),]
+    return [np.median(x), ]
+
 
 def value_chunker_mean(x: Sequence[_T]) -> Sequence[_T]:
-    return [np.mean(x,axis=0).tolist(),]
+    return [np.mean(x, axis=0).tolist(), ]
+
 
 def value_chunker_minmeanmax(x):
-    if len(x)>1:
+    if len(x) > 1:
         return np.min(x, axis=0).tolist(), np.mean(x, axis=0).tolist(), np.max(x, axis=0).tolist()
     else:
         return x
 
+
 def timestamp_chunker_minmeanmax(x):
-    if len(x)>1:
-        return [x[0], x[0]+(x[-1]-x[0])/2, x[-1]]
+    if len(x) > 1:
+        return [x[0], x[0] + (x[-1] - x[0]) / 2, x[-1]]
     else:
         return x
 
@@ -556,11 +564,11 @@ class TimestampBytesDB(LMDBDict):
                     count = 0
                     while key and (key_unpacked < until or (endpoint and key_unpacked == until)):
                         # loop until no more key before 'until' exists or deletion fails
-                        if what=='keys':
+                        if what == 'keys':
                             yield key_unpacked
-                        elif what=='values':
+                        elif what == 'values':
                             yield self._value_packer.unpack(c.value())
-                        elif what=='items':
+                        elif what == 'items':
                             yield key_unpacked, self._value_packer.unpack(c.value())
                         else:
                             raise NotImplementedError
@@ -573,11 +581,11 @@ class TimestampBytesDB(LMDBDict):
                 else:
                     return
 
-
-    def _get_timespan_decimated(self, decimate_to_s, since=None, until=None, limit=None, timestamp_chunker=None, value_chunker=None):
+    def _get_timespan_decimated(self, decimate_to_s, since=None, until=None, limit=None, timestamp_chunker=None,
+                                value_chunker=None):
         for timestamp_list, value_list in self._get_timespan_chunked(decimate_to_s=decimate_to_s,
-                                                                    since=since, until=until,
-                                                                    limit = limit):
+                                                                     since=since, until=until,
+                                                                     limit=limit):
             if timestamp_chunker is None:
                 timestamp_chunker = lambda x: x
 
@@ -588,7 +596,6 @@ class TimestampBytesDB(LMDBDict):
                 yield d, v
 
     def _get_timespan_chunked(self, decimate_to_s, since=None, until=None, limit=None):
-
 
         if decimate_to_s == 'auto':
             assert isinstance(limit, int) and limit > 0
@@ -622,7 +629,7 @@ class TimestampBytesDB(LMDBDict):
             if n == 0:  # new segment
                 start_date = row_date
                 stop_date = start_date + decimate_to
-                values = [value,]
+                values = [value, ]
                 dates = [row_date, ]
                 n = 1
 
@@ -670,12 +677,12 @@ class TimestampBytesDB(LMDBDict):
                     since = self._key_packer.unpack(cursor.key())
                     d_s['since'] = since.isoformat()
                     d_s['since_epoch'] = since.strftime('%s')
-                    #d_s['first_value'] = self._value_packer.unpack(cursor.value())
+                    # d_s['first_value'] = self._value_packer.unpack(cursor.value())
                 if cursor.last():
                     until = self._key_packer.unpack(cursor.key())
                     d_s['until'] = until.isoformat()
                     d_s['until_epoch'] = until.strftime('%s')
-                    #d_s['last_value'] = self._value_packer.unpack(cursor.value())
+                    # d_s['last_value'] = self._value_packer.unpack(cursor.value())
 
         return d_s
 

@@ -11,12 +11,12 @@ import re
 import requests
 import uuid
 from lmdb_sensor_storage.sensor_db import LMDBSensorStorage
-from lmdb_sensor_storage.db import timestamp_chunker_center, value_chunker_mean, timestamp_chunker_minmeanmax, value_chunker_minmeanmax
+from lmdb_sensor_storage.db import timestamp_chunker_center, value_chunker_mean, timestamp_chunker_minmeanmax, \
+    value_chunker_minmeanmax
 from lmdb_sensor_storage._http_request_handler import html_template
 from lmdb_sensor_storage._parser import add_logging, setup_logging, fromisoformat
 
 logger = logging.getLogger('lmdb_sensor_storage.history')
-
 
 # noinspection SpellCheckingInspection
 template = {'data': {'scatter': [{'marker': {'colorbar': {'outlinewidth': 0, 'ticks': ''}},
@@ -145,7 +145,7 @@ def generate_history_div(mdb_filename,
             if n_non_combinable_yaxis > 0:
                 x[np.flatnonzero(x == 0)] = np.arange(n_non_combinable_yaxis)
 
-            axis_suffices = ['' if k == 0 else f'{k+1}' for k in x]
+            axis_suffices = ['' if k == 0 else f'{k + 1}' for k in x]
 
             del x  # don't accidentally reuse temporary variable
 
@@ -169,14 +169,14 @@ def generate_history_div(mdb_filename,
                                     'domain': [j * (h + d), (j + 1) * h + j * d],
                                     }
 
-        layout['xaxis' + suffix] = {'anchor': 'y'+suffix,
+        layout['xaxis' + suffix] = {'anchor': 'y' + suffix,
                                     'domain': [0.0, 1.0],
                                     'showticklabels': False}
         if i > 0:
             # link all x-axis
             layout['xaxis' + suffix]['matches'] = 'x'
 
-        if i == n_rows-1:
+        if i == n_rows - 1:
             # show x-ticks only on bottom most plot
             layout['xaxis' + suffix]["showticklabels"] = True
 
@@ -192,8 +192,8 @@ def generate_history_div(mdb_filename,
 
         suffix = axis_suffices[i]
         print(sensor_name)
-        dates, values = storage[sensor_name].keys_values(timestamp_chunker = timestamp_chunker,
-                                                         value_chunker = value_chunker,
+        dates, values = storage[sensor_name].keys_values(timestamp_chunker=timestamp_chunker,
+                                                         value_chunker=value_chunker,
                                                          **kwargs)
         if len(dates) == 0:
             logger.info('Skipped history generation since no data is in %s for database %s the requests time period',
@@ -206,16 +206,16 @@ def generate_history_div(mdb_filename,
                          })
         else:
             dates = [d.isoformat() for d in dates]
-            if storage[sensor_name].data_format=='f':
+            if storage[sensor_name].data_format == 'f':
                 data.append({'type': 'scatter',
                              'x': dates,
-                             'xaxis': 'x'+suffix,
+                             'xaxis': 'x' + suffix,
                              'y': values,
-                             'yaxis': 'y'+suffix,
+                             'yaxis': 'y' + suffix,
                              })
                 data[-1]['name'] = sensor_name
 
-            elif storage[sensor_name].data_format=='ffff':
+            elif storage[sensor_name].data_format == 'ffff':
                 v = np.asarray(values)
                 y = [list(v[:, i].flatten()) for i in range(v.shape[1])]
                 field_names = storage[sensor_name].metadata.get('field_names', None)
@@ -263,10 +263,10 @@ def generate_history_div(mdb_filename,
                        "yref": 'paper',
                        "y1": 1,
                        "line": {
-                            "color": 'grey',
-                            "width": 1.5,
-                            "dash": 'dot',
-                        }})
+                           "color": 'grey',
+                           "width": 1.5,
+                           "dash": 'dot',
+                       }})
 
         hovertext = timestamp.isoformat()
         if notes.get('long', ''):
@@ -274,17 +274,17 @@ def generate_history_div(mdb_filename,
 
         # noinspection SpellCheckingInspection
         annotations.append({
-                "yref": 'paper',
-                "x": timestamp.isoformat(),
-                "xanchor": 'center',
-                "y": 0,
-                "yanchor": 'top',
-                "text": notes['short'],
-                "showarrow": True,
-                "ax": 0,
-                "ay": -0.035,
-                "ayref": 'paper',
-                "hovertext": hovertext,
+            "yref": 'paper',
+            "x": timestamp.isoformat(),
+            "xanchor": 'center',
+            "y": 0,
+            "yanchor": 'top',
+            "text": notes['short'],
+            "showarrow": True,
+            "ax": 0,
+            "ay": -0.035,
+            "ayref": 'paper',
+            "hovertext": hovertext,
         })
 
     layout['shapes'] = shapes
@@ -385,9 +385,9 @@ def generate_history_plotly(mdb_filename,
 
             fig.add_trace(go.Scatter(x=dates, y=values,
                                      name=trace_name),  # legend entry
-                          row=i+1, col=1,)
+                          row=i + 1, col=1, )
 
-            yaxis = 'yaxis' + str(i+1) if i > 0 else 'yaxis'
+            yaxis = 'yaxis' + str(i + 1) if i > 0 else 'yaxis'
             # set yrange
             if plot_min_val is not None or plot_max_val is not None:
                 getattr(fig.layout, yaxis).range = [plot_min_val, plot_max_val]
@@ -433,7 +433,6 @@ def generate_history_html(mdb_filename,
 
 
 def setup_parser() -> argparse.ArgumentParser:
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--mdb-filename', type=str, required=True)
