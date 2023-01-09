@@ -6,6 +6,8 @@ a fast an efficient database with small footprint.
 
 An MQTT subscriber is included to easily store data from a broker using LMDB Sensor Storage.
 
+
+## Installation
 To install the latest version use
 ```
 pip install git+https://github.com/Aikhjarto/lmdb_sensor_storage
