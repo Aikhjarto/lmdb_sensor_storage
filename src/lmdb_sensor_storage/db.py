@@ -2,7 +2,6 @@ import logging
 import os
 from datetime import datetime, timedelta
 from typing import MutableMapping, Dict, Mapping, Iterable, Sequence, TypeVar, Union, Tuple, Any, List
-_T = TypeVar('_T')
 import lmdb
 import numpy as np
 
