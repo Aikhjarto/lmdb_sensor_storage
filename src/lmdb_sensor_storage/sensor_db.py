@@ -14,10 +14,11 @@ logger = logging.getLogger('lmdb_sensor_storage.storage')
 
 class Sensor(TimestampBytesDB):
     """
-    A Sensor consists of three databases in `mdb_filename`
+    A Sensor consists of four databases in `mdb_filename`
     'data_' + sensor_name is a TimestampStringDB containing timeseries data
     'meta_' + sensor_name is a StringYAMLDB
     'format_' + sensor_name is a TimestampStringDB containing information on how to decode the timeseries data.
+    'notes_' + sensor_name is a TimestampNotesDB
 
     The format for decoding the timeseries data is either set in the constructor as data_format, read from the
     format-database or guessed from the next  write access to the timeseries data.
@@ -30,6 +31,8 @@ class Sensor(TimestampBytesDB):
     sensor_name : str
 
     data_format : str
+
+    notes : lmdb_sensor_storage.db.TimestampNotesDB
     """
 
     def __init__(self, mdb_filename, sensor_name, data_format: str = None):
@@ -47,6 +50,8 @@ class Sensor(TimestampBytesDB):
 
         self._metadata = StringYamlDB(mdb_filename, 'meta_' + sensor_name)
 
+        self._notes_db = TimestampNotesDB(self._mdb_filename, 'notes_' + sensor_name)
+
     def __hash__(self):
         return hash((self._mdb_filename, self._sensor_name))
 
@@ -59,6 +64,10 @@ class Sensor(TimestampBytesDB):
     def metadata(self):
         return self._metadata
         
+    @property
+    def notes(self):
+        return self._notes_db
+
     @property
     def sensor_name(self):
         return self._sensor_name
@@ -114,13 +123,14 @@ class Sensor(TimestampBytesDB):
         if not export_mdb_filename:
             export_mdb_filename = self.mdb_filename
 
-        for prefix in ('data_', 'meta_', 'format_'):
+        for prefix in ('data_', 'meta_', 'format_', 'notes_'):
             if manager.db_exists(export_mdb_filename, prefix + new_sensor_name):
                 raise RuntimeError('Destination sensor already exists!')
 
         super().copy_to('data_' + new_sensor_name, export_mdb_filename)
         self._metadata.copy_to('meta_' + new_sensor_name, export_mdb_filename)
         self._format_db.copy_to('format_' + new_sensor_name, export_mdb_filename)
+        self._notes_db.copy_to('notes_' + new_sensor_name, export_mdb_filename)
 
 
 class TimestampNotesDB(TimestampYAMLDB):
@@ -204,7 +214,7 @@ class Sensors(Mapping):
         return len(tuple(self.__iter__()))
 
     def __delitem__(self, name):
-        for prefix in ('data_', 'meta_', 'format_'):
+        for prefix in ('data_', 'meta_', 'format_', 'notes_'):
             db_name = prefix + name
             manager.delete_db(self._mdb_filename, db_name)
 
