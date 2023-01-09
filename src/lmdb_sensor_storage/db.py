@@ -634,10 +634,17 @@ class TimestampBytesDB(LMDBDict):
     def values(self, since=None, until=None, endpoint=False, limit=None):
         return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='values'))
 
-    def items(self, since=None, until=None, endpoint=False, decimate_to_s=None, limit=None, timestamp_chunker=None, value_chunker=None):
+    def items(self, first=None, last=None, since=None, until=None, endpoint=False, decimate_to_s=None, limit=None,
+              timestamp_chunker=None, value_chunker=None):
         if decimate_to_s:
-            return list(self._get_timespan_decimated(since=since, until=until, decimate_to_s=decimate_to_s, limit=limit, timestamp_chunker=timestamp_chunker, value_chunker=value_chunker))
-        return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='items'))
+            return list(self._get_timespan_decimated(since=since, until=until, decimate_to_s=decimate_to_s, limit=limit,
+                                                     timestamp_chunker=timestamp_chunker, value_chunker=value_chunker))
+        elif first:
+            return [[self.get_first_timestamp(), self.get_first_value()]]
+        elif last:
+            return [[self.get_last_timestamp(), self.get_last_value()]]
+        else:
+            return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='items'))
 
     def keys_values(self, **kwargs):
         keys = []

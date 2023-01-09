@@ -287,7 +287,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_header('Set-Cookie', self.cookie)
             self.send_chunked_header()
             self.end_headers()
-            for d, v in self.server.sensor_storage[sensor_name].items():
+            for d, v in self.server.sensor_storage[sensor_name].items(**kwargs):
                 self.write_chunked(f'{d.isoformat()};{v}\n'.encode())
             self.end_write()
 
@@ -546,7 +546,7 @@ class MDBRequestHandler(HTTPRequestHandler):
         Get dict for `since`, `until`, and `decimate_to_s`.
         """
         kwargs = {}
-        for key in ('since', 'until', 'decimate_to_s', 'limit'):
+        for key in ('since', 'until', 'decimate_to_s', 'limit', 'first', 'last'):
             if key in self.server.sessions[self.sid]['get_query_dict']:
                 kwargs[key] = self.server.sessions[self.sid]['get_query_dict'][key]
 
