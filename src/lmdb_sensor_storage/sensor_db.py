@@ -6,7 +6,7 @@ from lmdb_sensor_storage.db import manager, StringYamlDB, TimestampBytesDB, Time
 from lmdb_sensor_storage._parser import as_datetime
 from lmdb_sensor_storage._packer import BytesPacker, StringPacker, JSONPacker, FloatPacker, \
     StructPacker
-from typing import SupportsFloat, Mapping, List
+from typing import Mapping, List
 import logging
 
 logger = logging.getLogger('lmdb_sensor_storage.storage')
