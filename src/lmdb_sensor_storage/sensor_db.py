@@ -63,7 +63,7 @@ class Sensor(TimestampBytesDB):
     @property
     def metadata(self):
         return self._metadata
-        
+
     @property
     def notes(self):
         return self._notes_db
@@ -91,7 +91,7 @@ class Sensor(TimestampBytesDB):
             self._value_packer = StringPacker()
         elif data_format == 'bytes':
             self._value_packer = BytesPacker()
-        elif data_format=='f':
+        elif data_format == 'f':
             self._value_packer = FloatPacker()
         elif isinstance(data_format, str):
             assert struct.calcsize(data_format) > 0
@@ -116,10 +116,9 @@ class Sensor(TimestampBytesDB):
     def write_values(self, dates, values):
         if not self.data_format:
             self.data_format = guess_format_string(values[0])
-        return super().update([(x,y) for x,y in zip(dates, values)])
+        return super().update([(x, y) for x, y in zip(dates, values)])
 
-
-    def copy_to(self, new_sensor_name, export_mdb_filename = None):
+    def copy_to(self, new_sensor_name, export_mdb_filename=None):
         if not export_mdb_filename:
             export_mdb_filename = self.mdb_filename
 

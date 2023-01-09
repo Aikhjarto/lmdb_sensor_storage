@@ -68,7 +68,7 @@ template = {'data': {'scatter': [{'marker': {'colorbar': {'outlinewidth': 0, 'ti
                           'zerolinewidth': 2}}}
 
 
-def plot_plotly(date, val,  plot_min_val=None, plot_max_val=None, unit=None):
+def plot_plotly(date, val, plot_min_val=None, plot_max_val=None, unit=None):
     import plotly.express as px
     ylabel = 'Value'
     if unit:

@@ -322,8 +322,7 @@ class LMDBDict(MutableMapping):
                 else:
                     raise KeyError
 
-
-    def copy_to(self, new_db_name, export_mdb_filename = None):
+    def copy_to(self, new_db_name, export_mdb_filename=None):
         if not export_mdb_filename:
             export_mdb_filename = self.mdb_filename
         export_mdb_filename = os.path.realpath(export_mdb_filename)
@@ -334,8 +333,8 @@ class LMDBDict(MutableMapping):
             # Note: all db handles must be genereated befor a transaction is created, thus manager.get_transaction cannot be used here
             db_out = manager.get_db(export_mdb_filename, new_db_name)
             db_in = manager.get_db(self.mdb_filename, self._db_name)
-            with lmdb.Transaction(manager.get_environment(export_mdb_filename),db=db_out, write=True) as txn_out:
-                with lmdb.Transaction(manager.get_environment(self._mdb_filename),db=db_in) as txn_in:
+            with lmdb.Transaction(manager.get_environment(export_mdb_filename), db=db_out, write=True) as txn_out:
+                with lmdb.Transaction(manager.get_environment(self._mdb_filename), db=db_in) as txn_in:
                     for key, val in txn_in.cursor():
                         txn_out.put(key, val, db=db_out)
 
