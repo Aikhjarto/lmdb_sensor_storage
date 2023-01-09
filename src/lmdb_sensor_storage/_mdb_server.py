@@ -376,7 +376,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             add_note_form = self.html_add_note_form
 
             div_inputs = '<div id="id_div_inputs">{}</div>'.format('\n'.join((
-                                                                    range_select_form,
+                range_select_form,
                 '<div id="id_div_notes">' + delete_note_form,
                 add_note_form + '</div>',
             )))
