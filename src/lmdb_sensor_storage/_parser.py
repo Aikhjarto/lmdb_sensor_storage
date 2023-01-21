@@ -4,7 +4,7 @@ import logging.handlers
 import numpy as np
 import shlex
 import sys
-from datetime import datetime, timedelta
+import datetime
 
 
 def add_mqtt(g):
@@ -110,10 +110,10 @@ def fromisoformat(s):
 def as_timedelta(d, none_ok=False):
     if d is None and none_ok:
         return None
-    elif isinstance(d, timedelta):
+    elif isinstance(d, datetime.timedelta):
         return d
     else:
-        return timedelta(seconds=float(d))
+        return datetime.timedelta(seconds=float(d))
 
 
 def as_datetime(d, none_ok=False):
@@ -122,21 +122,23 @@ def as_datetime(d, none_ok=False):
 
     Parameters
     ----------
-    d : str or datetime or None
+    d : str or datetime.datetime or None
         If given as string,
 
     none_ok : boolisinstance
         If True, None is valid for 'd', otherwise a ValueError is raised.
     Returns
     -------
-    datetime
+    datetime.datetime
     """
 
     if d is None and none_ok:
         return None
-    elif isinstance(d, datetime):
+    elif isinstance(d, datetime.datetime):
         return d
     elif isinstance(d, str):
         return fromisoformat(d)
+    elif isinstance(d, datetime.date):
+        return datetime.datetime.combine(d, datetime.time.min)
     else:
-        raise ValueError(f'{d} cannot be processed as timestamp')
+        raise ValueError(f'{d} of type {type(d)} cannot be processed as timestamp')
