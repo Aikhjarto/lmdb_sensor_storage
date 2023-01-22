@@ -1,0 +1,7 @@
+include *.md
+include *.txt
+include tox.ini
+recursive-include scripts *.py
+recursive-include tests *.py
+recursive-include tests *.service
+recursive-include tests *.timer
