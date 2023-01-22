@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lmdb_sensor_storage"
+authors = [
+    {name = "Thomas Wagner", email = "wagner-thomas@gmx.at"},
+]
+repository = 'https://github.com/Aikhjarto/lmdb_sensor_storage'
+description = "Efficient storage for sensor data using lmdb as backend"
+readme = "README.md"
+requires-python = ">=3.6"
+license = {text = "GPLv2"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "requests",
+    "brotlipy",
+    "lmdb",
+    "numpy>=1.7",
+    "plotly>=4.0",
+    "pandas>1.0",
+    "urllib3",
+    "paho-mqtt",
+    "PyYAML",
+    "requests",
+    "flatdict",
+    "regex",
+]
+dynamic = ["version"]
+
+[project.scripts]
+my-script = "scripts/check_lmbd_sensor_data_age.py"
