@@ -631,11 +631,11 @@ class TimestampBytesDB(LMDBDict):
                 dates = [row_date, ]
                 n = 1
 
-    def values(self, since=None, until=None, endpoint=False, limit=None):
+    def values(self, since=None, until=None, endpoint=False, limit=None) -> List[Any]:
         return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='values'))
 
     def items(self, first=None, last=None, since=None, until=None, endpoint=False, decimate_to_s=None, limit=None,
-              timestamp_chunker=None, value_chunker=None):
+              timestamp_chunker=None, value_chunker=None) -> List[Tuple[datetime, Any]]:
         if decimate_to_s:
             return list(self._get_timespan_decimated(since=since, until=until, decimate_to_s=decimate_to_s, limit=limit,
                                                      timestamp_chunker=timestamp_chunker, value_chunker=value_chunker))
@@ -646,7 +646,7 @@ class TimestampBytesDB(LMDBDict):
         else:
             return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='items'))
 
-    def keys_values(self, **kwargs):
+    def keys_values(self, **kwargs) -> Tuple[List[datetime], List[Any]]:
         keys = []
         values = []
         for key, value in self.items(**kwargs):
@@ -654,13 +654,13 @@ class TimestampBytesDB(LMDBDict):
             values.append(value)
         return keys, values
 
-    def keys(self, since=None, until=None, endpoint=False, limit=None):
+    def keys(self, since=None, until=None, endpoint=False, limit=None) -> List[datetime]:
         return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='keys'))
 
-    def get_first_timestamp(self):
+    def get_first_timestamp(self) -> datetime:
         return self._get_sample(last=False)
 
-    def get_last_timestamp(self):
+    def get_last_timestamp(self) -> datetime:
         return self._get_sample(last=True)
 
     def get_first_value(self):
