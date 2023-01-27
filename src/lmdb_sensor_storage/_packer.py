@@ -15,7 +15,7 @@ class Packer:
     def pack(self, x) -> bytes:
         raise NotImplementedError
 
-    def unpack(self, x:bytes):
+    def unpack(self, x: bytes):
         raise NotImplementedError
 
 
@@ -75,22 +75,22 @@ class JSONPacker(Packer):
 
 
 class YamlPacker(Packer):
-     def pack(self, x) -> bytes:
+    def pack(self, x) -> bytes:
 
-         if isinstance(x, bytes):
-             x = x.decode()
-         if isinstance(x, str):
-             try:
-                 data = yaml.safe_load(x)
-             except yaml.YAMLError:
-                 raise ValueError(f'Data {x} is no valid json')
-             else:
-                 return yaml.safe_dump(data).encode()
+        if isinstance(x, bytes):
+            x = x.decode()
+        if isinstance(x, str):
+            try:
+                data = yaml.safe_load(x)
+            except yaml.YAMLError:
+                raise ValueError(f'Data {x} is no valid json')
+            else:
+                return yaml.safe_dump(data).encode()
 
-         return yaml.safe_dump(x).encode()
+        return yaml.safe_dump(x).encode()
 
-     def unpack(self, x:bytes):
-         return yaml.safe_load(x.decode())
+    def unpack(self, x: bytes):
+        return yaml.safe_load(x.decode())
 
 
 class FloatPacker(Packer):
@@ -117,10 +117,10 @@ class StructPacker(Packer):
         super().__init__()
         self._fmt_str = str(fmt_str)
 
-    def pack(self, x:Iterable) -> bytes:
+    def pack(self, x: Iterable) -> bytes:
         return struct.pack(self._fmt_str, *x)
 
-    def unpack(self, x:bytes) -> Tuple[Any]:
+    def unpack(self, x: bytes) -> Tuple[Any]:
         return struct.unpack(self._fmt_str, x)
 
 

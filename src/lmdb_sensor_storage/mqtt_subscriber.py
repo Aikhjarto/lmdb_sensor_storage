@@ -80,8 +80,8 @@ def on_message(mqtt_client, userdata, message):
             return
 
         date = fromisoformat(data.pop('Time'))
-        if date.year<2016:
-            date=datetime.now()
+        if date.year < 2016:
+            date = datetime.now()
 
         for sensor in data.keys():
             if sensor.startswith('DS18B20'):

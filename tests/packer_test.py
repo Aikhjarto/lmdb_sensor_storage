@@ -9,12 +9,12 @@ class TestcasePackUnpack(unittest.TestCase):
     def test_pack_float(self):
         d = 3
         fmt = guess_format_string(d)
-        self.assertAlmostEqual(unpack(pack(d,fmt),fmt)[0],d)
+        self.assertAlmostEqual(unpack(pack(d, fmt), fmt)[0], d)
 
     def test_pack_iterable_of_float(self):
-        d = (3,4,3.2,7,1)
+        d = (3, 4, 3.2, 7, 1)
         fmt = guess_format_string(d)
-        e = unpack(pack(d, fmt),fmt)
+        e = unpack(pack(d, fmt), fmt)
         [self.assertAlmostEqual(x, y) for x, y in zip(d, e)]
 
 
@@ -43,13 +43,13 @@ class TestcasePacker(unittest.TestCase):
     def testJson(self):
 
         p = JSONPacker()
-        self.assertEqual([3,], p.unpack(p.pack([3,])))
+        self.assertEqual([3, ], p.unpack(p.pack([3, ])))
         self.assertEqual([3, 4], p.unpack(p.pack([3, 4])))
         self.assertEqual({"a": 3, "4": 4}, p.unpack(p.pack({"a": 3, "4": 4})))
         self.assertEqual({"a": 3, "4": 4}, p.unpack(p.pack({"a": 3, 4: 4})))
-        self.assertEqual([1,2,3], p.unpack(p.pack('[1,2,3]')))
+        self.assertEqual([1, 2, 3], p.unpack(p.pack('[1,2,3]')))
         self.assertEqual([1, 2, 3], p.unpack(p.pack(' [ 1, 2, 3 ] ')))
+
 
 if __name__ == "__main__":
     unittest.main()
-

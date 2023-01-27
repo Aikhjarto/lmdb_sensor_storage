@@ -9,6 +9,6 @@ setup(name='lmdb_sensor_storage',
       author_email='wagner-thomas@gmx.at',
       url='https://github.com/Aikhjarto/lmdb_sensor_storage',
       scripts=['scripts/check_lmbd_sensor_data_age.py'],
-      include_package_data = True,
-      package_data= {'lmdb_sensor_storage': ['**/*.service', '**/*.timer'],}
-     )
+      include_package_data=True,
+      package_data={'lmdb_sensor_storage': ['**/*.service', '**/*.timer'], }
+      )

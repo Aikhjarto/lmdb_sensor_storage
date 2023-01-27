@@ -5,12 +5,13 @@ from typing import MutableMapping, Dict, Mapping, Iterable, Sequence, TypeVar, U
 import lmdb
 import numpy as np
 
-from lmdb_sensor_storage._packer import BytesPacker, StringPacker, JSONPacker, DatetimePacker, YamlPacker, FloatPacker, \
-    IntPacker, StructPacker, RegexPacker
+from lmdb_sensor_storage._packer import (BytesPacker, StringPacker, JSONPacker, DatetimePacker, YamlPacker, FloatPacker,
+                                         IntPacker, StructPacker, RegexPacker)
 from lmdb_sensor_storage._parser import as_datetime
 
 logger = logging.getLogger('lmdb_sensor_storage.db')
 _T = TypeVar('_T')
+
 
 class Manager:
     """
@@ -329,7 +330,8 @@ class LMDBDict(MutableMapping):
         if manager.db_exists(self.mdb_filename, new_db_name):
             raise RuntimeError(f'DB "{new_db_name}" already exists in "{export_mdb_filename}"')
         else:
-            # Note: all db handles must be genereated befor a transaction is created, thus manager.get_transaction cannot be used here
+            # Note: all db handles must be genereated befor a transaction is created,
+            # thus manager.get_transaction cannot be used here
             db_out = manager.get_db(export_mdb_filename, new_db_name)
             db_in = manager.get_db(self.mdb_filename, self._db_name)
             with lmdb.Transaction(manager.get_environment(export_mdb_filename), db=db_out, write=True) as txn_out:
@@ -454,7 +456,8 @@ class TimestampBytesDB(LMDBDict):
         """
         Write a new value at date.
         If date already existed, the value is updated.
-        If date did not exist previously, it is added, unless only_if_value_changed was True and the previous value was the same as the new value.
+        If date did not exist previously, it is added, unless only_if_value_changed was True and the previous value was
+        the same as the new value.
         """
         with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
             value_packed = self._value_packer.pack(value)
@@ -505,8 +508,8 @@ class TimestampBytesDB(LMDBDict):
         if not since <= until:
             raise RuntimeError(f'{since} is not before {until}')
 
-        logger.info(
-            f'Deleting values of DB {self._db_name} from {self._mdb_filename} since {since.isoformat()} until {until.isoformat()}.')
+        logger.info(f'Deleting values of DB {self._db_name} from {self._mdb_filename} '
+                    f'since {since.isoformat()} until {until.isoformat()}.')
 
         result = True
         if manager.db_exists(self._mdb_filename, self._db_name):

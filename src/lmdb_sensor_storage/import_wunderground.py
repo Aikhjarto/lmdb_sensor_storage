@@ -31,11 +31,13 @@ def setup_parser() -> argparse.ArgumentParser:
 
     return parser
 
+
 def float_nan(x):
     try:
         return float(x)
     except (TypeError, ValueError):
         return math.nan
+
 
 def import_wunderground_data(mdb_filename: str, data: dict):
     logger.info('Importing %d samples to %s', len(data['observations']), mdb_filename)

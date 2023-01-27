@@ -43,5 +43,5 @@ class TestcaseGuesstype(unittest.TestCase):
         self.assertEqual(guess_format_string('B'), 'str')
 
     def test_lists(self):
-        self.assertEqual(guess_format_string([3.0,3]), '2f')
+        self.assertEqual(guess_format_string([3.0, 3]), '2f')
         self.assertEqual(guess_format_string((3.0, 'xc')), 'json')

@@ -58,7 +58,6 @@ if __name__ == '__main__':
         else:
             timestamp = max(timestamp, _timestamp)
 
-
     # https://assets.nagios.com/downloads/nagioscore/docs/nagioscore/3/en/pluginapi.html
     SERVICEPERFDATA = f'|age={(datetime.now()-timestamp).seconds}s;' \
                       f'{timedelta_warning.seconds};{timedelta_critical.seconds}'

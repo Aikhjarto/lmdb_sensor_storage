@@ -7,6 +7,7 @@ import shutil
 
 # noinspection PyPep8Naming
 class EmptyDatabaseMixin:
+    # noinspection PyAttributeOutsideInit
     def setUp(self):
         # logger = logging.getLogger('lmdb_sensor_storage.db')
         # logger.setLevel(logging.DEBUG)
