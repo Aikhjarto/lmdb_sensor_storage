@@ -30,7 +30,7 @@ class BytesPacker(Packer):
 
 class StringPacker(Packer):
 
-    def pack(self, x: str) -> bytes:
+    def pack(self, x: Any) -> bytes:
         data = str(x)
         return data.encode()
 
