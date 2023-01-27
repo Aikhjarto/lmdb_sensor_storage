@@ -539,7 +539,11 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_error(404)
 
     def _get_sensor_names_from_query(self) -> List[str]:
-        return self.server.sessions[self.sid]['get_query_dict'].get('sensor_name', [])
+
+        if "X-Sensornames" in self.headers:
+            return self.headers["X-Sensornames"]
+        else:
+            return self.server.sessions[self.sid]['get_query_dict'].get('sensor_name', [])
 
     def _get_timespan_dict_from_query(self) -> dict:
         """
@@ -549,6 +553,9 @@ class MDBRequestHandler(HTTPRequestHandler):
         for key in ('since', 'until', 'decimate_to_s', 'limit', 'first', 'last'):
             if key in self.server.sessions[self.sid]['get_query_dict']:
                 kwargs[key] = self.server.sessions[self.sid]['get_query_dict'][key]
+
+            if "X-"+key in self.headers:
+                kwargs[key] = self.headers["X-"+key]
 
         return kwargs
 
