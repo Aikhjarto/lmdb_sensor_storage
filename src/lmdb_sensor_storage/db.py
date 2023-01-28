@@ -424,14 +424,14 @@ def value_chunker_minmeanmax(x):
     if len(x) > 1:
         return np.min(x, axis=0).tolist(), np.mean(x, axis=0).tolist(), np.max(x, axis=0).tolist()
     else:
-        return x
+        return x, x, x
 
 
 def timestamp_chunker_minmeanmax(x):
     if len(x) > 1:
         return [x[0], x[0] + (x[-1] - x[0]) / 2, x[-1]]
     else:
-        return x
+        return x, x, x
 
 
 class TimestampBytesDB(LMDBDict):
