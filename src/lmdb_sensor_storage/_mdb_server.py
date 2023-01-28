@@ -291,6 +291,25 @@ class MDBRequestHandler(HTTPRequestHandler):
                 self.write_chunked(f'{d.isoformat()};{v}\n'.encode())
             self.end_write()
 
+        elif self.path.startswith('/nodered_chart'):
+            kwargs = self._get_timespan_dict_from_query()
+            if not isinstance(kwargs, dict):
+                return
+
+            sensor_names = self._get_sensor_names_from_query()
+            if not sensor_names:
+                return
+            data = [self.server.sensor_storage.get_node_red_graph_data(sensor_names, **kwargs)]
+            j = json.dumps(data)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "text/json")
+            self.send_header("Cache-Control", "public")
+            self.send_header('Content-Length', str(len(j)))
+            self.end_headers()
+
+            self.wfile.write(j.encode())
+
         elif self.path.startswith('/time'):
 
             kwargs = self._get_timespan_dict_from_query()

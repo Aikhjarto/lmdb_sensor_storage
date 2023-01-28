@@ -6,7 +6,7 @@ from lmdb_sensor_storage.db import manager, StringYamlDB, TimestampBytesDB, Time
 from lmdb_sensor_storage._parser import as_datetime
 from lmdb_sensor_storage._packer import BytesPacker, StringPacker, JSONPacker, FloatPacker, \
     StructPacker
-from typing import Mapping, List
+from typing import Mapping, List, Sequence
 import logging
 
 logger = logging.getLogger('lmdb_sensor_storage.storage')
@@ -270,6 +270,26 @@ class LMDBSensorStorage(Sensors):
 
     def get_non_empty_sensors(self):
         return [Sensor(self._mdb_filename, sensor_name) for sensor_name in self.get_non_empty_sensor_names()]
+
+    def get_node_red_graph_data(self, sensor_names: Sequence[str], **kwargs):
+        """
+        Return sensor data in a format that can be imported to NodeRed's charts.
+        https://github.com/node-red/node-red-dashboard/blob/master/Charts.md
+
+        **kwargs are forwarded to Sensor.items()
+        """
+        series = list()
+        data = list()
+        labels = list()
+        for sensor_name in sensor_names:
+            sensor = Sensor(self._mdb_filename, sensor_name)
+            tmp = []
+            for stamp, value in sensor.items(**kwargs):
+                tmp.append({'x': int(stamp.timestamp()*1000), 'y': value})
+            series.append(sensor.sensor_name)
+            data.append(tmp)
+            labels.append(sensor.metadata.get('label', ''))
+        return {'series': series, 'data': data, 'labels': labels}
 
     def close(self):
         manager.close(self._mdb_filename)
