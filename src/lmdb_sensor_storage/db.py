@@ -1,7 +1,8 @@
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import MutableMapping, Dict, Mapping, Iterable, Sequence, TypeVar, Union, Tuple, Any, List
+from typing import (MutableMapping, Dict, Mapping, Iterable, Sequence, TypeVar,
+                    Union, Tuple, Any, List, Literal, SupportsFloat)
 import lmdb
 import numpy as np
 
@@ -207,7 +208,7 @@ class LMDBDict(MutableMapping):
     def items(self):
         return list(self._get(what='items'))
 
-    def _get(self, what='keys'):
+    def _get(self, what: Literal['keys', 'values', 'items'] = 'keys'):
         if manager.db_exists(self._mdb_filename, self._db_name):
             with manager.get_transaction(self._mdb_filename, self._db_name) as txn:
                 c = txn.cursor()
@@ -420,14 +421,14 @@ def value_chunker_mean(x: Sequence[_T]) -> Sequence[_T]:
     return [np.mean(x, axis=0).tolist(), ]
 
 
-def value_chunker_minmeanmax(x):
+def value_chunker_minmeanmax(x: Sequence[_T]) -> Sequence[_T]:
     if len(x) > 1:
         return np.min(x, axis=0).tolist(), np.mean(x, axis=0).tolist(), np.max(x, axis=0).tolist()
     else:
         return x, x, x
 
 
-def timestamp_chunker_minmeanmax(x):
+def timestamp_chunker_minmeanmax(x: Sequence[_T]) -> Sequence[_T]:
     if len(x) > 1:
         return [x[0], x[0] + (x[-1] - x[0]) / 2, x[-1]]
     else:
@@ -490,7 +491,7 @@ class TimestampBytesDB(LMDBDict):
 
         return result
 
-    def delete_entries(self, since=None, until=None):
+    def delete_entries(self, since: Union[str, datetime, None] = None, until: Union[str, datetime, None] = None):
 
         since = as_datetime(since, none_ok=True)
         until = as_datetime(until, none_ok=True)
@@ -531,7 +532,8 @@ class TimestampBytesDB(LMDBDict):
                     return False
         return result
 
-    def _get_timespan(self, since=None, until=None, endpoint=False, limit=None, what=None):
+    def _get_timespan(self, since: datetime = None, until: datetime = None, endpoint: bool = False, limit: int = None,
+                      what: Literal['keys', 'values', 'items'] = None):
 
         if not len(self):
             return
@@ -596,7 +598,8 @@ class TimestampBytesDB(LMDBDict):
             for d, v in zip(timestamp_chunker(timestamp_list), value_chunker(value_list)):
                 yield d, v
 
-    def _get_timespan_chunked(self, decimate_to_s, since=None, until=None, limit=None):
+    def _get_timespan_chunked(self, decimate_to_s: Union[Literal['auto'], SupportsFloat],
+                              since: datetime = None, until: datetime = None, limit: int = None):
 
         if decimate_to_s == 'auto':
             assert isinstance(limit, int) and limit > 0
@@ -643,9 +646,9 @@ class TimestampBytesDB(LMDBDict):
             return list(self._get_timespan_decimated(since=since, until=until, decimate_to_s=decimate_to_s, limit=limit,
                                                      timestamp_chunker=timestamp_chunker, value_chunker=value_chunker))
         elif first:
-            return [[self.get_first_timestamp(), self.get_first_value()]]
+            return [(self.get_first_timestamp(), self.get_first_value())]
         elif last:
-            return [[self.get_last_timestamp(), self.get_last_value()]]
+            return [(self.get_last_timestamp(), self.get_last_value())]
         else:
             return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='items'))
 
