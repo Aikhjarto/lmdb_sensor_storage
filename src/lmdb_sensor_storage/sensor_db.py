@@ -280,7 +280,6 @@ class LMDBSensorStorage(Sensors):
         """
         series = list()
         data = list()
-        labels = list()
         for sensor_name in sensor_names:
             sensor = Sensor(self._mdb_filename, sensor_name)
             tmp = []
