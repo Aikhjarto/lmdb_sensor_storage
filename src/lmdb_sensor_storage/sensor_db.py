@@ -288,8 +288,7 @@ class LMDBSensorStorage(Sensors):
                 tmp.append({'x': int(stamp.timestamp()*1000), 'y': value})
             series.append(sensor.sensor_name)
             data.append(tmp)
-            labels.append(sensor.metadata.get('label', ''))
-        return {'series': series, 'data': data, 'labels': labels}
+        return {'series': series, 'data': data, 'labels': [""]}
 
     def close(self):
         manager.close(self._mdb_filename)

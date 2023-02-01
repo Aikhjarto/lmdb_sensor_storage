@@ -292,6 +292,8 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.end_write()
 
         elif self.path.startswith('/nodered_chart'):
+            # https://github.com/node-red/node-red-dashboard/blob/master/Charts.md#line-charts-1
+
             kwargs = self._get_timespan_dict_from_query()
             if not isinstance(kwargs, dict):
                 return
