@@ -33,11 +33,11 @@ def on_message(mqtt_client, userdata, message):
     """
     Parameters
     ----------
-    mqtt_client:
+    mqtt_client: mqtt.Client
         the client instance for this callback
-    userdata:
+    userdata: dict
         the private user data as set in Client() or userdata_set()
-    message:    mqtt.MQTTMessage
+    message: mqtt.MQTTMessage
         This is a class with members topic, payload, qos, retain.
 
     """
