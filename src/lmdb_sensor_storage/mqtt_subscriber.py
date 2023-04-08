@@ -12,6 +12,9 @@ import regex
 logger = logging.getLogger('lmdb_sensor_storage.mqtt_subscriber')
 
 
+re_esphome = regex.compile(r'^.+\/.+\/.+\/state$')
+
+
 def setup_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
 
@@ -58,6 +61,14 @@ def on_message(mqtt_client, userdata, message):
                 if date.year > 2016:
                     s = Sensor(userdata['mdb_filename'], sensor_name)
                     s.write_value(date, value, only_if_value_changed=True)
+    elif re_esphome.fullmatch(message.topic):
+        # <TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMONENT_NAME>/state
+        # TOPIC_PREFIX is usally the hostname
+        sensor_name, _  = message.topic.rsplit('/',1)
+        date = datetime.now()
+        s = Sensor(userdata['mdb_filename'], sensor_name)
+        data = message.payload.decode()
+        s.write_value(date, data, only_if_value_changed=True)
 
     elif regex.match(r'tele\/.+\/SENSOR', message.topic):
         # tasmaota sensor data, see https://tasmota.github.io/docs/MQTT/#examples
