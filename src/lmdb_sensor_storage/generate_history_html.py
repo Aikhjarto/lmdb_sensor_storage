@@ -130,8 +130,8 @@ def generate_history_div(mdb_filename,
 
             # empty row in x: no data for this type of sensor, thus no need for an axis
             # empty column: sensordata is not combinable
-            n_non_combinable_yaxis = np.sum(np.sum(np.asarray(x, dtype=np.int), axis=0) == 0)
-            n_combinable_yaxis = np.sum(np.sum(np.asarray(x, dtype=np.int), axis=1) != 0)
+            n_non_combinable_yaxis = np.sum(np.sum(np.asarray(x, dtype=int), axis=0) == 0)
+            n_combinable_yaxis = np.sum(np.sum(np.asarray(x, dtype=int), axis=1) != 0)
             n_axis = n_non_combinable_yaxis + n_combinable_yaxis
 
             # remove empty rows, i.e. non-required axis
