@@ -464,42 +464,29 @@ class TimestampBytesDB(LMDBDict):
         """
         with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
             value_packed = self._value_packer.pack(value)
-            # TODO: change logic below to avoid code duplication
             if only_if_value_changed:
                 cur = txn.cursor()
                 if cur.set_range(self._key_packer.pack(date)):  # seek to first timestamp greater or equal to date
                     # assert: cur is not at end of database but pointing to first value with timestamp >=date
-                    if cur.prev():  # move one back (if not already on first entry)
-                        # assert: cur points to the place right before sample will be added in
-
-                        last_time = self._key_packer.unpack(cur.key())
-                        check_value_changed_is_required = True
-                        if max_age_seconds is not None:
-                            assert(max_age_seconds > 0)
-                            check_value_changed_is_required = (date-last_time) < timedelta(seconds=max_age_seconds)
-
-                        if check_value_changed_is_required:
-                            last_value = cur.value()
-                            if last_value == value_packed:
-                                logger.debug(
-                                    f'Skip ({date},{value}) for db "{self._db_name}," since value did not change')
-                                return False
+                    cur_valid = cur.prev()  # move one back (if not already on first entry)
                 else:
-                    if cur.last():
-                        # assert: cur points to the place right before sample will be added in
-                        last_time = self._key_packer.unpack(cur.key())
+                    # assert: cur is pointing somewhere after the end of database
+                    cur_valid = cur.last() # move to last entry, unless database is empty
 
-                        check_value_changed_is_required = True
-                        if max_age_seconds is not None:
-                            assert(max_age_seconds > 0)
-                            check_value_changed_is_required = (date-last_time) < timedelta(seconds=max_age_seconds)
+                if cur_valid:
+                    # assert: cur points to the place right before sample will be added in
+                    last_time = self._key_packer.unpack(cur.key())
+                    check_value_changed_is_required = True
+                    if max_age_seconds is not None:
+                        assert (max_age_seconds > 0)
+                        check_value_changed_is_required = (date - last_time) < timedelta(seconds=max_age_seconds)
 
-                        if check_value_changed_is_required:
-                            last_value = cur.value()
-                            if last_value == value_packed:
-                                logger.debug(
-                                    f'Skip ({date},{value}) for db "{self._db_name}," since value did not change')
-                                return False
+                    if check_value_changed_is_required:
+                        last_value = cur.value()
+                        if last_value == value_packed:
+                            logger.debug(
+                                f'Skip ({date},{value}) for db "{self._db_name}," since value did not change')
+                            return False
 
             logger.debug(f'Write ({date},{value}) to DB "{self._db_name}"')
 
