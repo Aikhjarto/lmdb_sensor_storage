@@ -108,10 +108,10 @@ class Sensor(TimestampBytesDB):
             self.data_format = guess_format_string(value)
         return super().__setitem__(key, value)
 
-    def write_value(self, date, value, only_if_value_changed=False):
+    def write_value(self, date, value, only_if_value_changed=False, max_age_seconds=None):
         if not self.data_format:
             self.data_format = guess_format_string(value)
-        return super().write_value(date, value, only_if_value_changed=only_if_value_changed)
+        return super().write_value(date, value, only_if_value_changed=only_if_value_changed, max_age_seconds=max_age_seconds)
 
     def write_values(self, dates, values):
         if not self.data_format:
