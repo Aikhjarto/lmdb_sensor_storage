@@ -485,7 +485,8 @@ class TimestampBytesDB(LMDBDict):
                         last_value = cur.value()
                         if last_value == value_packed:
                             logger.debug(
-                                f'Skip ({date},{value}) for db "{self._db_name}," since value did not change')
+                                f'Skip ({date},{value}) for db "{self._db_name}," since value did not change from '
+                                f'since {last_time}')
                             return False
 
             logger.debug(f'Write ({date},{value}) to DB "{self._db_name}"')
