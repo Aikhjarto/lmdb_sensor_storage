@@ -27,6 +27,8 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument('--mqtt-subscribe-topic', type=str, action='append')
 
+    parser.add_argument('--max-age-seconds', type=float, default=None)
+
     add_logging(parser)
 
     return parser
@@ -60,7 +62,7 @@ def on_message(mqtt_client, userdata, message):
             for date, value in zip(dates, data[sensor_name]):
                 if date.year > 2016:
                     s = Sensor(userdata['mdb_filename'], sensor_name)
-                    s.write_value(date, value, only_if_value_changed=True)
+                    s.write_value(date, value, **userdata['write_value_kwargs'])
     elif re_esphome.fullmatch(message.topic):
         # <TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMONENT_NAME>/state
         # TOPIC_PREFIX is usally the hostname
@@ -68,7 +70,7 @@ def on_message(mqtt_client, userdata, message):
         date = datetime.now()
         s = Sensor(userdata['mdb_filename'], sensor_name)
         data = message.payload.decode()
-        s.write_value(date, data, only_if_value_changed=True)
+        s.write_value(date, data, **userdata['write_value_kwargs'])
 
     elif regex.match(r'tele\/.+\/SENSOR', message.topic):
         # tasmaota sensor data, see https://tasmota.github.io/docs/MQTT/#examples
@@ -100,7 +102,7 @@ def on_message(mqtt_client, userdata, message):
                 sensor_name = "DS18B20-" + data[sensor]['Id']
                 value = data[sensor]['Temperature']
                 s = Sensor(userdata['mdb_filename'], sensor_name)
-                s.write_value(date, float(value),  only_if_value_changed=True)
+                s.write_value(date, float(value),  **userdata['write_value_kwargs'])
             elif sensor.startswith('AS3935') and int(data[sensor]['Event']) > 0:
                 # don't log no-lightning-events
                 sensor_name = message.topic.split('/')[1] + '_' + sensor
@@ -110,7 +112,7 @@ def on_message(mqtt_client, userdata, message):
                                float(data[sensor]['Distance']),
                                float(data[sensor]['Energy']),
                                float(data[sensor]['Stage'])),
-                              only_if_value_changed=True)
+                              **userdata['write_value_kwargs'])
 
             elif callable(getattr(data[sensor], 'items', None)):
                 # TODO: don't split up values to multiple sensors, since a timestamp is then generated for each value
@@ -118,11 +120,11 @@ def on_message(mqtt_client, userdata, message):
                 sensor_name = message.topic.split('/')[1] + '_' + sensor + '_'
                 for key, value in data[sensor].items():
                     s = Sensor(userdata['mdb_filename'], sensor_name + key)
-                    s.write_value(date, value, only_if_value_changed=True)
+                    s.write_value(date, value, **userdata['write_value_kwargs'])
             else:
                 sensor_name = message.topic.split('/')[1] + '_' + sensor
                 s = Sensor(userdata['mdb_filename'], sensor_name)
-                s. write_value(date, data[sensor], only_if_value_changed=True)
+                s. write_value(date, data[sensor], **userdata['write_value_kwargs'])
 
     else:
         msg = message.payload.decode()
@@ -152,7 +154,7 @@ def on_message(mqtt_client, userdata, message):
 
         if date is not None and data is not None:
             s = Sensor(userdata['mdb_filename'], message.topic)
-            s.write_value(date, data, only_if_value_changed=True)
+            s.write_value(date, data, **userdata['write_value_kwargs'])
 
 
 if __name__ == '__main__':
@@ -176,6 +178,9 @@ if __name__ == '__main__':
         if res != mqtt.MQTT_ERR_SUCCESS:
             logger.error(f'Subscribe to topic "{topic}" failed with error {res}')
     client.user_data_set({'mdb_filename': args.mdb_filename,
+                          'write_value_kwargs': {'only_if_value_changed': True,
+                                                 'max_age_seconds': args.max_age_seconds,
+                                                 }
                           }
                          )
     client.on_message = on_message
