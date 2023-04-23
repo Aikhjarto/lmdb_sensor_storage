@@ -81,6 +81,26 @@ class TestStringYamlDB(EmptyDatabaseMixin, unittest.TestCase):
 
 class TestcaseTimestampDB(EmptyDatabaseMixin, unittest.TestCase):
 
+    def test_only_if_changed(self):
+        db = TimestampBytesDB(self.mdb_filename, 'g')
+        val = b'1'
+        date = datetime.now()
+        db.write_value(date, val)
+        self.assertEqual(len(db), 1)
+
+        # skip adding entry if vallue is not changed
+        dt = timedelta(seconds=60)
+        db.write_value(date+dt, val, only_if_value_changed=True)
+        self.assertEqual(len(db), 1)
+
+        # add entry which regardless of valuechange
+        db.write_value(date+dt, val, only_if_value_changed=False)
+        self.assertEqual(len(db), 2)
+
+        # add entry which has no value change but is delayed by max_age_seconds
+        db.write_value(date+timedelta(days=1), val, only_if_value_changed=True, max_age_seconds=3600)
+        self.assertEqual(len(db), 3)
+
     def test_TimeStampBytesDB(self):
         db = TimestampBytesDB(self.mdb_filename, 'g')
         db._get_lmdb_stats()
