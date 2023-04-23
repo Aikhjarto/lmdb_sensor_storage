@@ -43,6 +43,17 @@ if __name__ == '__main__':
     timedelta_warning = abs(timedelta(seconds=float(args.w)))
     timedelta_critical = abs(timedelta(seconds=float(args.c)))
 
+    # ugly hack to correct wrongfully encoded character when using this script with the nagios plugin check_by_ssh
+    sensor_names = []
+    for sensor_name in args.sensor_name:
+        tmp = []
+        for char in sensor_name:
+            if ord(char) & 0xdc00:
+                tmp.append(chr(ord(char)-0xdc00))
+            else:
+                tmp.append(char)
+        sensor_names.append(''.join(tmp))
+
     if timedelta_warning >= timedelta_critical:
         raise RuntimeError('Warning age must be smaller than critical age')
 
@@ -55,14 +66,14 @@ if __name__ == '__main__':
             exit(UNKNOWN)
 
     timestamp = datetime.min
-    for sensor_name in args.sensor_name:
+    for sensor_name in sensor_names:
         sensor = Sensor(args.mdb_filename, sensor_name)
         if args.last_change:
             _timestamp = sensor.get_last_changed()
         else:
             _timestamp = sensor.get_last_timestamp()
         if not _timestamp:
-            print(f'UNKNOWN - No data found for sensor {args.sensor_name} in file {args.mdb_filename}')
+            print(f'UNKNOWN - No data found for sensor {sensor_name} in file {args.mdb_filename}')
             exit(UNKNOWN)
         else:
             timestamp = max(timestamp, _timestamp)
