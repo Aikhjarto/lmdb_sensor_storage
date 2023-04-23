@@ -171,6 +171,28 @@ class TestcaseTimestampDB(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(len(db), 1)
 
 
+    def test_last_changed(self):
+        db = TimestampBytesDB(self.mdb_filename, 'h')
+        db._get_lmdb_stats()
+
+        assert(None, db.get_last_changed())
+
+        date = datetime.now()
+        data = b'1'
+        db.write_value(date, data)
+        assert (date, db.get_last_changed())
+
+        db.write_value(date+timedelta(seconds=1), data)
+        assert (date, db.get_last_changed())
+
+        new_date = date+timedelta(seconds=10)
+        new_data = b'0'
+        db.write_value(new_date, new_data)
+        assert (new_date, db.get_last_changed())
+
+        db.write_value(new_date+timedelta(seconds=1), new_data)
+        assert (new_date, db.get_last_changed())
+
 class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_guessing(self):

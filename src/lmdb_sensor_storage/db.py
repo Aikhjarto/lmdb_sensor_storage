@@ -677,6 +677,18 @@ class TimestampBytesDB(LMDBDict):
     def get_last_timestamp(self) -> datetime:
         return self._get_sample(last=True)
 
+    def get_last_changed(self) -> Union[datetime,None]:
+        if manager.db_exists(self._mdb_filename, self._db_name):
+            with manager.get_transaction(self._mdb_filename, self._db_name) as txn:
+                c = txn.cursor()
+                if c.last():
+                    # assert: db is not empy
+                    last_value = c.value()
+                    while c.prev(): # move backwards in time
+                        if last_value != c.value():
+                            c.next()
+                            return self._key_packer.unpack(c.key())
+
     def get_first_value(self):
         return self._get_sample(last=False, get_value=True)
 

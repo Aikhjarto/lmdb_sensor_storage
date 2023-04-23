@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-from lmdb_sensor_storage.sensor_db import Sensor
 import argparse
 import os
 from datetime import datetime, timedelta
-
 
 # NAGIOS return codes :
 # https://nagios-plugins.org/doc/guidelines.html#AEN78
@@ -12,6 +10,11 @@ WARNING = 1
 CRITICAL = 2
 UNKNOWN = 3
 
+try:
+    from lmdb_sensor_storage.sensor_db import Sensor
+except ImportError:
+    print('UNKNOWN - cannot find lmdb_sensor_storage modue')
+    exit(UNKNOWN)
 
 def setup_parser() -> argparse.ArgumentParser:
 
@@ -22,6 +25,8 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument('-w', type=str, required=True,
                         help='If age of the last sample in seconds is higher than `W`, state is WARNING')
+
+    parser.add_argument('--last-change', action='store_true', default=False)
 
     parser.add_argument('--mdb-filename', type=str, required=True)
 
@@ -51,7 +56,11 @@ if __name__ == '__main__':
 
     timestamp = datetime.min
     for sensor_name in args.sensor_name:
-        _timestamp = Sensor(args.mdb_filename, sensor_name).get_last_timestamp()
+        sensor = Sensor(args.mdb_filename, sensor_name)
+        if args.last_change:
+            _timestamp = sensor.get_last_changed()
+        else:
+            _timestamp = sensor.get_last_timestamp()
         if not _timestamp:
             print(f'UNKNOWN - No data found for sensor {args.sensor_name} in file {args.mdb_filename}')
             exit(UNKNOWN)
