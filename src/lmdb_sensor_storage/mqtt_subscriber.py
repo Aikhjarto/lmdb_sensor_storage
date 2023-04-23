@@ -134,7 +134,7 @@ def on_message(mqtt_client, userdata, message):
             # non-json
             json_dict = None
 
-        if json_dict:
+        if isinstance(json_dict,dict):
             # json
             if "epoch" in json_dict and "value" in json_dict:
                 # {"epoch":1670946356,"value":62.875}
