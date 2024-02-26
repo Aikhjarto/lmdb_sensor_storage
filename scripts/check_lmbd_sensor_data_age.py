@@ -36,7 +36,7 @@ def setup_parser() -> argparse.ArgumentParser:
     return parser
 
 
-if __name__ == '__main__':
+def main():
 
     p = setup_parser()
     args = p.parse_args()
@@ -93,3 +93,7 @@ if __name__ == '__main__':
     else:
         print(f'OK - ' + SERVICEOUTPUT + SERVICEPERFDATA)
         exit(OK)
+
+
+if __name__ == '__main__':
+    main()
