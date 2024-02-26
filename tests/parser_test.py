@@ -2,7 +2,7 @@ import math
 
 from lmdb_sensor_storage._parser import as_datetime
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from lmdb_sensor_storage.sensor_db import guess_format_string
 
@@ -17,8 +17,11 @@ class TestDatetime(unittest.TestCase):
         with self.assertRaises(ValueError):
             as_datetime(None, none_ok=False)
 
-        self.assertEqual(datetime(year=2023, month=1, day=2),
-                         datetime(year=2023, month=1, day=2))
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5),
+                         as_datetime('2023-01-02T06:05'))
+
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+                         as_datetime('2023-01-02T06:05:54'))
 
 
 if __name__ == "__main__":

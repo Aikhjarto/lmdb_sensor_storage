@@ -96,15 +96,23 @@ def fromisoformat(s):
 
     Returns
     -------
-    datetime
+    datetime.datetime
 
     """
     if hasattr(datetime, 'fromisoformat'):
-        return datetime.fromisoformat(s)
+        return datetime.datetime.fromisoformat(s)
     else:
         # python 3.6 des not have built-in fromisoformat
         # thus, go over datetime64 from numpy
-        return np.datetime64(s).item()
+        tmp = np.datetime64(s).item()
+
+        # TODO: np.datetime64 does not store timezone information, thus switch to differen library
+        # https://numpy.org/devdocs/reference/arrays.datetime.html
+
+        # np.datetime64 can return datetime.date instead of datetime.datetime
+        if type(tmp) is datetime.date:
+            tmp = datetime.datetime.combine(tmp, datetime.time.min)
+        return tmp
 
 
 def as_timedelta(d, none_ok=False):
