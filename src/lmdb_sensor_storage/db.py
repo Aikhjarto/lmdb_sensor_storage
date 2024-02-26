@@ -107,12 +107,8 @@ class Manager:
 
         with self.get_environment(mdb_filename).begin() as txn:
             if txn.get(db_name.encode()) is None:
-                if db_name.startswith('data_'):
-                    log_fct = logger.warning
-                else:
-                    log_fct = logger.info
-                log_fct('Requested db %s does not exist in %s',
-                        db_name, mdb_filename)
+                logger.info('Requested db %s does not exist in %s',
+                            db_name, mdb_filename)
                 return False
         return True
 
