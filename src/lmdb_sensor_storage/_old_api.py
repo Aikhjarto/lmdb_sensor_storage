@@ -71,7 +71,6 @@ def unpack(data: bytes, pack_str=None) -> Tuple[Any]:
     return struct.unpack(pack_str, data)
 
 
-
 def _db_exists(mdb_filename, db_name):
     """
     Check if database exists since access (also read-only) to a non-existing database creates it.
@@ -113,6 +112,8 @@ def get_timestamp_of_first_sample(mdb_filename: str, sensor_name: str, last=Fals
         If True, timestamp of last sample is returned.
     get_value : bool
         If True, return value instead of timestamp.
+    pack_str: str
+        Passed to the `struct` package for values with multiple fields.
 
     Returns
     -------
@@ -244,6 +245,8 @@ def write_sample(mdb_filename, sensor_name, date, value, only_if_changed=False, 
         The value to store
     only_if_changed : bool
         Only write sample if it's value is different from the value in front of it (by timestamp).
+    pack_str: str
+        Passed to the `struct` package for values with multiple fields.
 
     Returns
     -------
@@ -297,6 +300,8 @@ def write_samples(mdb_filename, sensor_name, dates, values, pack_str=None):
         Timestamp when the value was recorded
     values : Iterable[float]
         The value to store
+    pack_str: str
+        Passed to the `struct` package for values with multiple fields.
 
     Returns
     -------
@@ -356,6 +361,8 @@ def get_samples(mdb_filename, sensor_name, since=None, until=None, decimate_to_s
         Defines the database to use
     keep_local_extrema : bool
         If true, three datapoints per segment are returned, the average, the local minimum and the local maximum.
+    pack_str: str
+        Passed to the `struct` package for values with multiple fields.
 
     Returns
     -------
