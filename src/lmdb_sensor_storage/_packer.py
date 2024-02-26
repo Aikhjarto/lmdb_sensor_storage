@@ -67,7 +67,7 @@ class JSONPacker(Packer):
                 if not isinstance(key, str):
                     non_string.append(key)
             if non_string:
-                warnings.warn(f'keys {non_string} will be converted to string keys')
+                warnings.warn(f'keys {non_string} will be converted to string keys', RuntimeWarning)
         return json.dumps(x).encode()
 
     def unpack(self, x):

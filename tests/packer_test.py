@@ -46,7 +46,8 @@ class TestcasePacker(unittest.TestCase):
         self.assertEqual([3, ], p.unpack(p.pack([3, ])))
         self.assertEqual([3, 4], p.unpack(p.pack([3, 4])))
         self.assertEqual({"a": 3, "4": 4}, p.unpack(p.pack({"a": 3, "4": 4})))
-        self.assertEqual({"a": 3, "4": 4}, p.unpack(p.pack({"a": 3, 4: 4})))
+        with self.assertWarns(RuntimeWarning):
+            self.assertEqual({"a": 3, "4": 4}, p.unpack(p.pack({"a": 3, 4: 4})))
         self.assertEqual([1, 2, 3], p.unpack(p.pack('[1,2,3]')))
         self.assertEqual([1, 2, 3], p.unpack(p.pack(' [ 1, 2, 3 ] ')))
 
