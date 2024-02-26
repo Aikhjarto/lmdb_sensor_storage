@@ -26,7 +26,8 @@ class Sensor(TimestampBytesDB):
     Properties
     ----------
     metadata : lmdb_sensor_storage.db.LMDBDict
-        Stores user-defined metadata. Keys 'label', 'unit', 'plot_min_val', 'plot_max_val', and 'group' are used for plotting.
+        Stores user-defined metadata. Keys 'label', 'unit', 'plot_min_val', 'plot_max_val', and 'group' are used for
+        plotting.
 
     sensor_name : str
 
@@ -111,7 +112,9 @@ class Sensor(TimestampBytesDB):
     def write_value(self, date, value, only_if_value_changed=False, max_age_seconds=None):
         if not self.data_format:
             self.data_format = guess_format_string(value)
-        return super().write_value(date, value, only_if_value_changed=only_if_value_changed, max_age_seconds=max_age_seconds)
+        return super().write_value(date, value,
+                                   only_if_value_changed=only_if_value_changed,
+                                   max_age_seconds=max_age_seconds)
 
     def write_values(self, dates, values):
         if not self.data_format:

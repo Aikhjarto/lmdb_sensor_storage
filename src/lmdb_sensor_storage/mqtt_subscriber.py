@@ -66,7 +66,7 @@ def on_message(mqtt_client, userdata, message):
     elif re_esphome.fullmatch(message.topic):
         # <TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMONENT_NAME>/state
         # TOPIC_PREFIX is usally the hostname
-        sensor_name, _  = message.topic.rsplit('/',1)
+        sensor_name, _ = message.topic.rsplit('/', 1)
         date = datetime.now()
         s = Sensor(userdata['mdb_filename'], sensor_name)
         data = message.payload.decode()
@@ -136,7 +136,7 @@ def on_message(mqtt_client, userdata, message):
             # non-json
             json_dict = None
 
-        if isinstance(json_dict,dict):
+        if isinstance(json_dict, dict):
             # json
             if "epoch" in json_dict and "value" in json_dict:
                 # {"epoch":1670946356,"value":62.875}

@@ -170,12 +170,11 @@ class TestcaseTimestampDB(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(db.items(), [(key2, val2)])
         self.assertEqual(len(db), 1)
 
-
     def test_last_changed(self):
         db = TimestampBytesDB(self.mdb_filename, 'h')
         db._get_lmdb_stats()
 
-        assert(None, db.get_last_changed())
+        assert (None, db.get_last_changed())
 
         date = datetime.now()
         data = b'1'
@@ -192,6 +191,7 @@ class TestcaseTimestampDB(EmptyDatabaseMixin, unittest.TestCase):
 
         db.write_value(new_date+timedelta(seconds=1), new_data)
         assert (new_date, db.get_last_changed())
+
 
 class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
 

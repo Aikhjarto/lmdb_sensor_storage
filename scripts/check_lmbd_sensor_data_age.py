@@ -16,6 +16,7 @@ except ImportError:
     print('UNKNOWN - cannot find lmdb_sensor_storage modue')
     exit(UNKNOWN)
 
+
 def setup_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser()

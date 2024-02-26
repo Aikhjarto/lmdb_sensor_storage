@@ -471,7 +471,7 @@ class TimestampBytesDB(LMDBDict):
                     cur_valid = cur.prev()  # move one back (if not already on first entry)
                 else:
                     # assert: cur is pointing somewhere after the end of database
-                    cur_valid = cur.last() # move to last entry, unless database is empty
+                    cur_valid = cur.last()  # move to last entry, unless database is empty
 
                 if cur_valid:
                     # assert: cur points to the place right before sample will be added in
@@ -677,14 +677,14 @@ class TimestampBytesDB(LMDBDict):
     def get_last_timestamp(self) -> datetime:
         return self._get_sample(last=True)
 
-    def get_last_changed(self) -> Union[datetime,None]:
+    def get_last_changed(self) -> Union[datetime, None]:
         if manager.db_exists(self._mdb_filename, self._db_name):
             with manager.get_transaction(self._mdb_filename, self._db_name) as txn:
                 c = txn.cursor()
                 if c.last():
                     # assert: db is not empy
                     last_value = c.value()
-                    while c.prev(): # move backwards in time
+                    while c.prev():  # move backwards in time
                         if last_value != c.value():
                             c.next()
                             return self._key_packer.unpack(c.key())
