@@ -1,3 +1,14 @@
+"""
+Parameters passed in URI:
+Once: 'since', 'until', 'decimate_to_s', 'limit', 'first', 'last'
+Multiple times: sensor_name
+
+Parameters passed in headers are the same as URI, but prefixed with 'X-'
+
+Values from URI have precedendence over alvues from Header
+API calls do not use cookies for last value
+"""
+
 import base64
 import datetime
 import json
@@ -17,6 +28,14 @@ from lmdb_sensor_storage.generate_history_html import generate_history_div
 from lmdb_sensor_storage._http_request_handler import HTTPRequestHandler, logger, html_template
 from lmdb_sensor_storage.import_wunderground import import_wunderground_station
 from lmdb_sensor_storage._parser import fromisoformat
+
+
+class DatetimeTimestampEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime.datetime):
+            return obj.timestamp()
+        # Let the base class default method raise the TypeError
+        return json.JSONEncoder.default(self, obj)
 
 
 class MDBServer(socketserver.ThreadingTCPServer):
@@ -207,7 +226,8 @@ class MDBRequestHandler(HTTPRequestHandler):
         if not query_dict:
             query_dict = self.get_query_dict()
 
-        sensor_names = self.server.sensor_storage.keys()
+        with self.server.my_lock:
+            sensor_names = self.server.sensor_storage.keys()
 
         try:
             with self.server.my_lock:
@@ -263,27 +283,26 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         self.update_session()
 
-        if not self.parse_query():
+        if self.parse_query() is not True:
             return
 
         if self.path == '/':
-            self.send_response(301)
+            self.send_response(307)
             self.send_header("Location", '/now')
+            self.send_header("Content-length", "0")
             self.end_headers()
 
-        if self.path.startswith('/data'):
+        elif self.path.startswith('/data'):
             # get data (timestamps and values) for a specific time-range
             # TODO: Have support for incremental loading in get_samples, possibly with a generator
             kwargs = self._get_timespan_dict_from_query()
-            if not isinstance(kwargs, dict):
-                return
-
             sensor_name = self._process_single_sensor_name()
             if not isinstance(sensor_name, str):
+                # plain return here, as _process_single_sensor_name already sent error message
                 return
 
             self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Type", "text/csv")
             self.send_header('Set-Cookie', self.cookie)
             self.send_chunked_header()
             self.end_headers()
@@ -295,35 +314,29 @@ class MDBRequestHandler(HTTPRequestHandler):
             # https://github.com/node-red/node-red-dashboard/blob/master/Charts.md#line-charts-1
 
             kwargs = self._get_timespan_dict_from_query()
-            if not isinstance(kwargs, dict):
-                return
 
             sensor_names = self._get_sensor_names_from_query()
             if not sensor_names:
+                logger.info('Request "%s" does not have a list called sensor_name but %s',
+                            self.path, sensor_names)
+                msg = f'Request "{self.path}" does not have a single sensor_names but {sensor_names}'
+                self.send_error(422, message=msg)
                 return
-            data = [self.server.sensor_storage.get_node_red_graph_data(sensor_names, **kwargs)]
-            j = json.dumps(data)
 
+            data = [self.server.sensor_storage.get_node_red_graph_data(sensor_names, **kwargs)]
+            j = json.dumps(data).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/json")
             self.send_header("Cache-Control", "public")
-            self.send_header('Content-Length', str(len(j)))
+            self.send_chunked_header()
             self.end_headers()
 
-            self.wfile.write(j.encode())
+            self.write_chunked(j)
+            self.end_write()
 
         elif self.path.startswith('/time'):
 
             kwargs = self._get_timespan_dict_from_query()
-
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html")
-            self.send_header('Cache-Control', 'no-store, must-revalidate')
-            self.send_header('Expires', '0')
-            self.send_header('Link', '</plotly.min.js>; rel=preload; as=script')
-            self.send_header('Set-Cookie', self.cookie)
-            self.send_chunked_header()
-            self.end_headers()
 
             if 'download_wunderground' in self.query_dict:
                 with self.server.my_lock:
@@ -415,66 +428,68 @@ class MDBRequestHandler(HTTPRequestHandler):
                                                         div_links)))
 
             html = html.encode()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header('Cache-Control', 'no-store, must-revalidate')
+            self.send_header('Expires', '0')
+            self.send_header('Link', '</plotly.min.js>; rel=preload; as=script')
+            self.send_header('Set-Cookie', self.cookie)
+            self.send_chunked_header()
+            self.end_headers()
+
             self.write_chunked(html)
             self.end_write()
 
         elif self.path == '/month':
             # serve graph of values over last week in 15 min intervals
-            self.send_response(301)
+            self.send_response(307)
             since = (datetime.datetime.now() - datetime.timedelta(days=30)).isoformat()
-            self.send_header("Location", f'/time?decimate_to_s=900&since={since}')
+            self.send_header("Location", f'/time?decimate_to_s=900&since={since}&until={datetime.datetime.now()}')
+            self.send_header("Content-length", "0")
             self.end_headers()
 
         elif self.path == '/week' or self.path == '/weekly':
             # serve graph of values over last week in 1 min intervals
-            self.send_response(301)
+            self.send_response(307)
             since = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
-            self.send_header("Location", f'/time?decimate_to_s=60&since={since}')
+            self.send_header("Location", f'/time?decimate_to_s=60&since={since}&until={datetime.datetime.now()}')
+            self.send_header("Content-length", "0")
             self.end_headers()
 
-        elif self.path == '/today' or self.path == 'day':
+        elif self.path == '/today' or self.path == '/day':
             # serve graph of values from last 24h in 1 seconds intervals
-            self.send_response(301)
+            self.send_response(307)
             since = (datetime.datetime.now() - datetime.timedelta(days=1)).isoformat()
-            self.send_header("Location", f'/time?decimate_to_s=1&since={since}')
+            self.send_header("Location", f'/time?decimate_to_s=1&since={since}&until={datetime.datetime.now()}')
+            self.send_header("Content-length", "0")
             self.end_headers()
 
-        elif self.path == '/now' or self.path == 'hour':
+        elif self.path == '/now' or self.path == '/hour':
             # serve graph of values from last 4 hour
-            self.send_response(301)
+            self.send_response(307)
             since = (datetime.datetime.now() - datetime.timedelta(hours=4)).isoformat()
-            self.send_header("Location", f'/time?since={since}')
+            self.send_header("Location", f'/time?since={since}&until={datetime.datetime.now()}')
+            self.send_header("Content-length", "0")
             self.end_headers()
 
         elif self.path.startswith('/notes'):
+
+            d = self._get_timespan_dict_from_query()
+            notes = self.server.sensor_storage.notes.items(since=d.get('since'), until=d.get('until'))
+            data = json.dumps(notes, cls=DatetimeTimestampEncoder)
+
             self.send_response(200)
             self.send_header('Content-Type', 'text/json')
             self.send_chunked_header()
             self.end_headers()
-
-            d = self._get_timespan_dict_from_query()
-            data = json.dumps(self.server.sensor_storage.notes.items(since=d.get('since'), until=d.get('until')),
-                              indent=4)
-
             self.write_chunked(data.encode())
             self.end_write()
-
-        elif self.path == '/plotly.min.js':
-            # serve plotly.min.js from plotly package
-            try:
-                import plotly
-            except ImportError:
-                self.send_error(501, message='Plotly is not installed properly')
-                return
-            self.path = os.path.join(os.path.dirname(plotly.__file__),
-                                     'package_data', 'plotly.min.js')
-
-            self._serve_file_absolute_path()
 
         elif self.path == '/stat.json':
 
             stat = self.server.sensor_storage.statistics
-            j = json.dumps(stat, indent=4)
+            j = json.dumps(stat, indent=4).encode()
 
             self.send_response(200)
             self.send_header("Content-Type", "text/json")
@@ -482,7 +497,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_header('Content-Length', str(len(j)))
             self.end_headers()
 
-            self.wfile.write(j.encode())
+            self.wfile.write(j)
 
         else:  # any other path
             super().do_GET()
@@ -562,7 +577,7 @@ class MDBRequestHandler(HTTPRequestHandler):
     def _get_sensor_names_from_query(self) -> List[str]:
 
         if "X-Sensornames" in self.headers:
-            return self.headers["X-Sensornames"]
+            return json.loads(self.headers["X-Sensornames"])
         else:
             return self.server.sessions[self.sid]['get_query_dict'].get('sensor_name', [])
 
