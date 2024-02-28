@@ -9,3 +9,4 @@ PyYAML
 requests
 flatdict
 regex
+typing_extensions

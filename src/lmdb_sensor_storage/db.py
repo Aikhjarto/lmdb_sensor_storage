@@ -2,7 +2,8 @@ import logging
 import os
 from datetime import datetime, timedelta
 from typing import (MutableMapping, Dict, Mapping, Iterable, Sequence, TypeVar,
-                    Union, Tuple, Any, List, Literal, SupportsFloat)
+                    Union, Tuple, Any, List, SupportsFloat)
+from typing_extensions import Literal
 import lmdb
 import numpy as np
 
