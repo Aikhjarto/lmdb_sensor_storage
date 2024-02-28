@@ -190,7 +190,6 @@ def generate_history_div(mdb_filename,
     for i, sensor_name in enumerate(sensor_names):
 
         suffix = axis_suffices[i]
-        print(sensor_name)
         dates, values = storage[sensor_name].keys_values(timestamp_chunker=timestamp_chunker,
                                                          value_chunker=value_chunker,
                                                          **kwargs)
