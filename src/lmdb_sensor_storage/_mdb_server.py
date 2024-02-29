@@ -23,6 +23,22 @@ from lmdb_sensor_storage.import_wunderground import import_wunderground_station
 from lmdb_sensor_storage._parser import as_datetime
 
 
+def strtobool(val: str) -> bool:
+    """Convert a string representation of truth to its Boolean counterpart.
+
+    True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
+    are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
+    'val' is anything else.
+    """
+    val = val.lower()
+    if val in ('y', 'yes', 't', 'true', 'on', '1'):
+        return True
+    elif val in ('n', 'no', 'f', 'false', 'off', '0'):
+        return False
+    else:
+        raise ValueError(f'invalid bool representation {val}')
+
+
 class DatetimeTimestampEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime.datetime):
@@ -224,6 +240,10 @@ class MDBRequestHandler(HTTPRequestHandler):
                 if key in self.query_dict:
                     self.query_dict[key] = int(self.query_dict[key][0])
 
+            for key in ('include_header',):  # parse to bool
+                if key in self.query_dict:
+                    self.query_dict[key] = strtobool(self.query_dict[key][0])
+
             # check if requested sensor names are actually in file
             with self.server.my_lock:
                 sensor_names = self.server.sensor_storage.keys()
@@ -292,8 +312,13 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_header('Set-Cookie', self.cookie)
             self.send_chunked_header()
             self.end_headers()
+
+            if self.server.sessions[self.sid]['query_dict'].get('include_header', False):
+                self.write_chunked(f"Time;{sensor_name}\n".encode())
+
             for d, v in self.server.sensor_storage[sensor_name].items(**kwargs):
                 self.write_chunked(f'{d.isoformat()};{v}\n'.encode())
+
             self.end_write_chunked()
 
         elif self.path.startswith('/nodered_chart'):

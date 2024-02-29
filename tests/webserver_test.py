@@ -99,6 +99,14 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(200, req.status_code)
         self.assertEqual(2, len(req.text.split('\n')))
 
+        # get most recent value with header
+        req = requests.request('GET', f'{self.base_url}/data', timeout=1,
+                               params={'sensor_name': "sensor1",
+                                       'include_header': True,
+                                       'since': self.reference_date})
+        self.assertEqual(200, req.status_code)
+        self.assertEqual(3, len(req.text.split('\n')))
+
         # get last 10 seconds requested in isoformat
         req = requests.request('GET', f'{self.base_url}/data', timeout=1,
                                params={'sensor_name': "sensor1",
