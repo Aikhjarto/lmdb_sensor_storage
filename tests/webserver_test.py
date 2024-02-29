@@ -89,22 +89,22 @@ class UnitTests(unittest.TestCase):
 
         # get most recent value
         req = requests.request('GET', f'{self.base_url}/data', timeout=1,
-                               params= {'sensor_name': "sensor1",
-                                        'since': self.reference_date})
+                               params={'sensor_name': "sensor1",
+                                       'since': self.reference_date})
         self.assertEqual(200, req.status_code)
         self.assertEqual(2, len(req.text.split('\n')))
 
         # get last 10 seconds requested in isoformat
         req = requests.request('GET', f'{self.base_url}/data', timeout=1,
-                               params= {'sensor_name': "sensor1",
-                                        'since': self.reference_date-datetime.timedelta(seconds=10)})
+                               params={'sensor_name': "sensor1",
+                                       'since': self.reference_date-datetime.timedelta(seconds=10)})
         self.assertEqual(200, req.status_code)
         self.assertEqual(12, len(req.text.split('\n')))
 
         # get last 10 seconds requested as timestamp
         req = requests.request('GET', f'{self.base_url}/data', timeout=1,
-                               params= {'sensor_name': "sensor1",
-                                        'since': (self.reference_date-datetime.timedelta(seconds=10)).timestamp()})
+                               params={'sensor_name': "sensor1",
+                                       'since': (self.reference_date-datetime.timedelta(seconds=10)).timestamp()})
         self.assertEqual(200, req.status_code)
         self.assertEqual(12, len(req.text.split('\n')))
 
