@@ -34,4 +34,4 @@ dynamic = ["version"]
 repository = 'https://github.com/Aikhjarto/lmdb_sensor_storage'
 
 [project.scripts]
-check_lmdb_sensor_data_age = "check_lmbd_sensor_data_age:main"
+check_lmdb_sensor_data_age = "check_lmdb_sensor_data_age:main"
