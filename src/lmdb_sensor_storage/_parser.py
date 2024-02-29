@@ -130,8 +130,8 @@ def as_datetime(d, none_ok=False):
 
     Parameters
     ----------
-    d : str or datetime.datetime or None
-        If given as string,
+    d : str or datetime.datetime or int or float or None
+        `d` can be either a number, which is treated as timestamp, or a string, which is treated as isoformat.
 
     none_ok : boolisinstance
         If True, None is valid for 'd', otherwise a ValueError is raised.
@@ -142,9 +142,42 @@ def as_datetime(d, none_ok=False):
 
     if d is None and none_ok:
         return None
+    elif isinstance(d, int) or isinstance(d, float):
+        # timestamp in seconds
+        return datetime.datetime.fromtimestamp(d)
     elif isinstance(d, datetime.datetime):
         return d
     elif isinstance(d, str):
+        # isoformat string, timestamp number as string (with or without suffix)
+        scale = 1
+        timestamp_str = d
+
+        if d.endswith('ms'):
+            timestamp_str = d[:-2]
+            scale = 1000
+        elif d.endswith('us'):
+            timestamp_str = d[:-2]
+            scale = 1000000
+        elif d.endswith('ns'):
+            timestamp_str = d[:-2]
+            scale = 1000000000
+        elif d.endswith('s'):
+            timestamp_str = d[:-1]
+            scale = 1
+
+        # try to convert to int or float
+        timestamp_val = None
+        try:
+            timestamp_val = int(timestamp_str)
+        except ValueError:
+            try:
+                timestamp_val = float(timestamp_str)
+            except ValueError:
+                pass
+
+        if timestamp_val is not None:
+            return datetime.datetime.fromtimestamp(timestamp_val/scale)
+
         return fromisoformat(d)
     elif isinstance(d, datetime.date):
         return datetime.datetime.combine(d, datetime.time.min)
