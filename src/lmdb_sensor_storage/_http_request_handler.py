@@ -28,15 +28,13 @@ favicon = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x03\
 class HTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     """
     HTTP request handler with support for chuncking and compression in do_GET.
-    """
+    Chunked encoding allows the server to send data in chunks. This is used to
+    stream data or send data which would not fit in the buffer as a whole.
 
-    def do_HEAD(self):
-        """ send a simple HTTP text/html header with caching disabled"""
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html")
-        self.send_header('Cache-Control', 'no-store, must-revalidate')
-        self.send_header('Expires', '0')
-        self.end_headers()
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Chunked_transfer_encoding
+    """
 
     def do_GET(self):
 
@@ -96,7 +94,7 @@ class HTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                 if use_gzip:
                     # noinspection PyUnboundLocalVariable
                     self.write_chunked(f.read())
-                    self.end_write()
+                    self.end_write_chunked()
                 else:
                     shutil.copyfileobj(f, self.wfile)
 
@@ -115,7 +113,10 @@ class HTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     def write_chunked(self, data: bytes):
         """
         Like `self.write`, but transparently uses chunked encoding and compression.
-        After last use of `write_chunked`, `self.end_write` must be used to flush buffers.
+        To enable usage of `self.write_chunked`, `self.send_chunked_headers` must be used to set
+        HTTP headers to inform client about chunked encoding.
+        Can be called multiple times after `self.end_headers()`.
+        After last use of `write_chunked`, `self.end_write_chunked` must be used to flush buffers.
 
         """
         if 'gzip' in self.headers.get('Accept-Encoding', '').split(', '):
@@ -132,9 +133,9 @@ class HTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(data)
             self.wfile.write('\r\n'.encode())
 
-    def end_write(self):
+    def end_write_chunked(self):
         """
-        Must be used after last call to `self.write_chunked` to flush bufferes.
+        Must be used after last call to `self.write_chunked` to send end-of-message string.
         """
         if hasattr(self, '_cmp'):
             ret = self._cmp.flush()

@@ -308,7 +308,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.end_headers()
             for d, v in self.server.sensor_storage[sensor_name].items(**kwargs):
                 self.write_chunked(f'{d.isoformat()};{v}\n'.encode())
-            self.end_write()
+            self.end_write_chunked()
 
         elif self.path.startswith('/nodered_chart'):
             # https://github.com/node-red/node-red-dashboard/blob/master/Charts.md#line-charts-1
@@ -332,7 +332,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.end_headers()
 
             self.write_chunked(j)
-            self.end_write()
+            self.end_write_chunked()
 
         elif self.path.startswith('/time'):
 
@@ -439,7 +439,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.end_headers()
 
             self.write_chunked(html)
-            self.end_write()
+            self.end_write_chunked()
 
         elif self.path == '/month':
             # serve graph of values over last week in 15 min intervals
@@ -484,7 +484,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_chunked_header()
             self.end_headers()
             self.write_chunked(data.encode())
-            self.end_write()
+            self.end_write_chunked()
 
         elif self.path == '/stat.json':
 
