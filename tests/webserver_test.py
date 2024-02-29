@@ -22,7 +22,10 @@ class UnitTests(unittest.TestCase):
         self.tempfolder = tempfile.mkdtemp()
         self.mdb_filename = os.path.join(self.tempfolder, 'unittest.mdb')
 
-        self.server = MDBServer(self.mdb_filename, ("", 8000), MDBRequestHandler)
+        self.server = MDBServer(self.mdb_filename, ("", 0), MDBRequestHandler)
+        self.port = self.server.server_address[1]
+        self.base_url = f'http://localhost:{self.port}'
+        
         self.server.daemon_threads = True
         self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.server_thread.start()
@@ -47,7 +50,7 @@ class UnitTests(unittest.TestCase):
         shutil.rmtree(self.tempfolder)
 
     def test_get_stat_json(self):
-        req = requests.request('GET', 'http://localhost:8000/stat.json', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/stat.json', timeout=1)
         self.assertEqual(200, req.status_code)
 
         data = req.json()
@@ -59,114 +62,114 @@ class UnitTests(unittest.TestCase):
         self.assertEqual('V', data['sensors']['sensor2']['meta']['unit'])
 
     def test_get_plotly_js(self):
-        req = requests.request('GET', 'http://localhost:8000/plotly.min.js', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/plotly.min.js', timeout=1)
         self.assertEqual(200, req.status_code)
 
     def test_get_favicon(self):
-        req = requests.request('GET', 'http://localhost:8000/favicon.ico', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/favicon.ico', timeout=1)
         self.assertEqual(200, req.status_code)
 
     def test_get_sensor_data(self):
 
         # request data from non-existing sensor
-        req = requests.request('GET', 'http://localhost:8000/data?sensor_name=sensor3', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/data?sensor_name=sensor3', timeout=1)
         self.assertEqual(422, req.status_code)
 
-        req = requests.request('GET', 'http://localhost:8000/data?sensor_name=sensor1', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/data?sensor_name=sensor1', timeout=1)
         self.assertEqual(200, req.status_code)
         self.assertEqual(len(req.text.split('\n')), 151)
 
-        req = requests.request('GET', 'http://localhost:8000/data?sensor_name=sensor2', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/data?sensor_name=sensor2', timeout=1)
         self.assertEqual(200, req.status_code)
         self.assertEqual(len(req.text.split('\n')), 101)
 
         # error message due to request data with no sensor name
-        req = requests.request('GET', 'http://localhost:8000/data', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/data', timeout=1)
         self.assertEqual(422, req.status_code)
 
         # get most recent value
-        req = requests.request('GET', 'http://localhost:8000/data', timeout=1,
+        req = requests.request('GET', f'{self.base_url}/data', timeout=1,
                                params= {'sensor_name': "sensor1",
                                         'since': self.reference_date})
         self.assertEqual(200, req.status_code)
         self.assertEqual(2, len(req.text.split('\n')))
 
         # get last 10 seconds requested in isoformat
-        req = requests.request('GET', 'http://localhost:8000/data', timeout=1,
+        req = requests.request('GET', f'{self.base_url}/data', timeout=1,
                                params= {'sensor_name': "sensor1",
                                         'since': self.reference_date-datetime.timedelta(seconds=10)})
         self.assertEqual(200, req.status_code)
         self.assertEqual(12, len(req.text.split('\n')))
 
         # get last 10 seconds requested as timestamp
-        req = requests.request('GET', 'http://localhost:8000/data', timeout=1,
+        req = requests.request('GET', f'{self.base_url}/data', timeout=1,
                                params= {'sensor_name': "sensor1",
                                         'since': (self.reference_date-datetime.timedelta(seconds=10)).timestamp()})
         self.assertEqual(200, req.status_code)
         self.assertEqual(12, len(req.text.split('\n')))
 
     def test_get_nodered_chart(self):
-        req = requests.request('GET', 'http://localhost:8000/nodered_chart', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/nodered_chart', timeout=1)
         self.assertEqual(422, req.status_code)
 
-        req = requests.request('GET', 'http://localhost:8000/nodered_chart',
+        req = requests.request('GET', f'{self.base_url}/nodered_chart',
                                headers={'X-Sensornames': '["sensor1", "sensor2"]'}, timeout=1)
         self.assertEqual(200, req.status_code)
         self.assertEqual(1, len(req.json()))
 
-        req = requests.request('GET', 'http://localhost:8000/nodered_chart',
+        req = requests.request('GET', f'{self.base_url}/nodered_chart',
                                headers={'X-Sensornames': '["sensor3"]'}, timeout=1)
         self.assertEqual(200, req.status_code)
         self.assertEqual(1, len(req.json()))
 
     def test_get_notes(self):
         # get emtpy notes
-        req = requests.request('GET', 'http://localhost:8000/notes', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/notes', timeout=1)
         self.assertEqual(200, req.status_code)
         self.assertEqual(0, len(req.json()),)
 
         Notes(self.mdb_filename).add_note('brief note', 'long message text', self.reference_date)
 
-        req = requests.request('GET', 'http://localhost:8000/notes', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/notes', timeout=1)
         self.assertEqual(200, req.status_code)
         data = req.json()
         self.assertEqual(data,
                          [[self.reference_date.timestamp(), {'long': 'long message text', 'short': 'brief note'}]])
 
     def test_get_root(self):
-        req = requests.request('GET', 'http://localhost:8000/', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/', timeout=1)
         self.assertEqual(307, req.history[0].status_code)
         self.assertEqual(307, req.history[1].status_code)
         self.assertEqual(200, req.status_code)
 
     def test_get_now(self):
-        req = requests.request('GET', 'http://localhost:8000/now', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/now', timeout=1)
         self.assertEqual(307, req.history[0].status_code)
         self.assertEqual(200, req.status_code)
 
     def test_get_today(self):
-        req = requests.request('GET', 'http://localhost:8000/today', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/today', timeout=1)
         self.assertEqual(307, req.history[0].status_code)
         self.assertEqual(200, req.status_code)
 
     def test_get_week(self):
-        req = requests.request('GET', 'http://localhost:8000/week', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/week', timeout=1)
         self.assertEqual(307, req.history[0].status_code)
         self.assertEqual(200, req.status_code)
 
     def test_get_month(self):
-        req = requests.request('GET', 'http://localhost:8000/month', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/month', timeout=1)
         self.assertEqual(307, req.history[0].status_code)
         self.assertEqual(200, req.status_code)
 
     def test_get_time(self):
-        req = requests.request('GET', 'http://localhost:8000/time', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/time', timeout=1)
         self.assertEqual(200, req.status_code)
 
-        req = requests.request('GET', 'http://localhost:8000/time?&sensor_name=sensor1&sensor_name=sensor2', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/time?&sensor_name=sensor1&sensor_name=sensor2', timeout=1)
         self.assertEqual(200, req.status_code)
 
-        req = requests.request('GET', 'http://localhost:8000/time?&sensor_name=sensor3', timeout=1)
+        req = requests.request('GET', f'{self.base_url}/time?&sensor_name=sensor3', timeout=1)
         self.assertEqual(422, req.status_code)
 
 
