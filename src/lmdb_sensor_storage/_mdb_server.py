@@ -7,14 +7,14 @@ Multiple times: sensor_name
 import base64
 import datetime
 import json
-import os
 import socket
 import socketserver
 import urllib.parse
 from random import randint
 import traceback
 from threading import Lock
-from typing import List
+from typing import List, Union
+from typing_extensions import Literal
 import urllib3
 from lmdb_sensor_storage import LMDBSensorStorage
 from lmdb_sensor_storage.generate_history_html import generate_history_div
@@ -175,25 +175,14 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         super().__init__(*args, **kwargs)
 
-    def _process_single_sensor_name(self):
-        sensor_names = self._get_sensor_names_from_query()
-        valid_sensor_names = self.server.sensor_storage.keys()
+    def ensure_single_sensor_name(self) -> Union[str, Literal[False]]:
+        sensor_names = self.get_sensor_names_from_session()
         if len(sensor_names) != 1:
             logger.info('Request "%s" does not have a single sensor_name but %s',
                         self.path, sensor_names)
             msg = f'Request "{self.path}" does not have a single sensor_name but {sensor_names}'
             self.send_error(422, message=msg)
             return False
-        elif sensor_names[0] not in valid_sensor_names:
-            logger.info('Requested sensor name "%s" is not in database %s\n'
-                        'Sensors in database are: %s',
-                        sensor_names[0], self.server.sensor_storage.mdb_filename, valid_sensor_names)
-            msg = f'Requested sensor name "{sensor_names[0]}" is not in ' \
-                  f'database {self.server.sensor_storage.mdb_filename}\n' \
-                  f'Valid sensor names are: {valid_sensor_names}.'
-            self.send_error(422, message=msg)
-            return False
-
         return sensor_names[0]
 
     @staticmethod
@@ -211,39 +200,43 @@ class MDBRequestHandler(HTTPRequestHandler):
         # assumption: no "=" in cookie name
         return dict([(c.split("=", 1)) for c in cookie_list.split(";")]) if cookie_list else {}
 
-    def parse_query(self, query_dict: dict = None):
+    def parse_query(self) -> Union[Exception, Literal[True]]:
         """
-        Parses query string
-
+        Parses query string, converts to desired number and time datatypes and checks if requested sensor names
+        are in the database.
+        If everything works, result are stored self.query_dict, and self.server.sessions[self.sid] is updated.
+        If anything goes wrong, HTTP 422 is sent with an appropriate errormessage.
         """
-        if not query_dict:
-            query_dict = self.get_query_dict()
-
-        with self.server.my_lock:
-            sensor_names = self.server.sensor_storage.keys()
 
         try:
+            self.query_dict = urllib.parse.parse_qs(urllib3.util.parse_url(self.path).query)
+            # assert query_dict is of type dict[str, list[str]]
+
+            for key in ('since', 'until'):  # parse to datetime
+                if key in self.query_dict:
+                    self.query_dict[key] = as_datetime(self.query_dict[key][0])
+
+            for key in ('decimate_to_s',):  # parse to float
+                if key in self.query_dict:
+                    self.query_dict[key] = float(self.query_dict[key][0])
+
+            for key in ('limit',):  # parse to int
+                if key in self.query_dict:
+                    self.query_dict[key] = int(self.query_dict[key][0])
+
+            # check if requested sensor names are actually in file
             with self.server.my_lock:
-                for key in ('since', 'until'):  # parse to datetime
-                    if key in query_dict:
-                        self.server.sessions[self.sid]['get_query_dict'][key] = as_datetime(query_dict[key][0])
+                sensor_names = self.server.sensor_storage.keys()
+            if 'sensor_name' in self.query_dict:
+                for sensor_name in self.query_dict['sensor_name']:
+                    if sensor_name not in sensor_names:
+                        raise ValueError(f'Sensor name {sensor_name} is not in list '
+                                         f'of available sensor names {sensor_names}')
 
-                for key in ('decimate_to_s',):  # parse to float
-                    if key in query_dict:
-                        self.server.sessions[self.sid]['get_query_dict'][key] = float(query_dict[key][0])
+            with self.server.my_lock:
+                self.server.sessions[self.sid]['query_dict'].update(self.query_dict)
 
-                for key in ('limit',):  # parse to int
-                    if key in query_dict:
-                        self.server.sessions[self.sid]['get_query_dict'][key] = int(query_dict[key][0])
-
-                if 'sensor_name' in query_dict:
-                    for sensor_name in query_dict['sensor_name']:
-                        if sensor_name not in sensor_names:
-                            raise ValueError(f'Sensor name {sensor_name} is not in list '
-                                             f'of available sensor names {sensor_names}')
-                    self.server.sessions[self.sid]['get_query_dict']['sensor_name'] = query_dict['sensor_name']
-
-        except ValueError as error:
+        except Exception as error:
 
             self.send_error(422, message=str(error),
                             explain=f'Malformed request {self.path} resulting in error {error}\n '
@@ -252,7 +245,6 @@ class MDBRequestHandler(HTTPRequestHandler):
                         self.path, error)
             return error
 
-        self.query_dict = query_dict
         return True
 
     @property
@@ -268,7 +260,7 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         if self.sid not in self.server.sessions:
             # new session
-            new_session_dict = {'get_query_dict': {},
+            new_session_dict = {'query_dict': {},
                                 'session_start': datetime.datetime.now()}
             with self.server.my_lock:
                 self.server.sessions[self.sid] = new_session_dict
@@ -289,10 +281,10 @@ class MDBRequestHandler(HTTPRequestHandler):
         elif self.path.startswith('/data'):
             # get data (timestamps and values) for a specific time-range
             # TODO: Have support for incremental loading in get_samples, possibly with a generator
-            kwargs = self._get_timespan_dict_from_query()
-            sensor_name = self._process_single_sensor_name()
+            kwargs = self.get_timespan_dict_from_session()
+            sensor_name = self.ensure_single_sensor_name()
             if not isinstance(sensor_name, str):
-                # plain return here, as _process_single_sensor_name already sent error message
+                # plain return here, as ensure_single_sensor_name already sent error message
                 return
 
             self.send_response(200)
@@ -307,9 +299,9 @@ class MDBRequestHandler(HTTPRequestHandler):
         elif self.path.startswith('/nodered_chart'):
             # https://github.com/node-red/node-red-dashboard/blob/master/Charts.md#line-charts-1
 
-            kwargs = self._get_timespan_dict_from_query()
+            kwargs = self.get_timespan_dict_from_session()
 
-            sensor_names = self._get_sensor_names_from_query()
+            sensor_names = self.get_sensor_names_from_session()
             if not sensor_names:
                 logger.info('Request "%s" does not have a list called sensor_name but %s',
                             self.path, sensor_names)
@@ -330,7 +322,7 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         elif self.path.startswith('/time'):
 
-            kwargs = self._get_timespan_dict_from_query()
+            kwargs = self.get_timespan_dict_from_session()
 
             if 'download_wunderground' in self.query_dict:
                 with self.server.my_lock:
@@ -353,7 +345,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             kwargs['limit'] = 10000 if 'limit' not in kwargs else int(kwargs['limit'])
 
             # generate plotly.js figure as an HTML <div>
-            sensor_names = self._get_sensor_names_from_query()
+            sensor_names = self.get_sensor_names_from_session()
             try:
                 div_plot = generate_history_div(self.server.sensor_storage.mdb_filename,
                                                 sensor_names=sensor_names,
@@ -469,7 +461,7 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         elif self.path.startswith('/notes'):
 
-            d = self._get_timespan_dict_from_query()
+            d = self.get_timespan_dict_from_session()
             notes = self.server.sensor_storage.notes.items(since=d.get('since'), until=d.get('until'))
             data = json.dumps(notes, cls=DatetimeTimestampEncoder)
 
@@ -541,7 +533,7 @@ class MDBRequestHandler(HTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(html)
 
-            elif self.get_query_dict().get('delete') is not None:
+            elif self.query_dict.get('delete') is not None:
                 # delete note
                 del self.server.sensor_storage.notes[timestamp]
 
@@ -568,28 +560,16 @@ class MDBRequestHandler(HTTPRequestHandler):
         else:
             self.send_error(404)
 
-    def _get_sensor_names_from_query(self) -> List[str]:
-        return self.server.sessions[self.sid]['get_query_dict'].get('sensor_name', [])
+    def get_sensor_names_from_session(self) -> List[str]:
+        return self.server.sessions[self.sid]['query_dict'].get('sensor_name', [])
 
-    def _get_timespan_dict_from_query(self) -> dict:
+    def get_timespan_dict_from_session(self) -> dict:
         """
         Get dict for `since`, `until`, and `decimate_to_s`.
         """
         kwargs = {}
         for key in ('since', 'until', 'decimate_to_s', 'limit', 'first', 'last'):
-            if key in self.server.sessions[self.sid]['get_query_dict']:
-                kwargs[key] = self.server.sessions[self.sid]['get_query_dict'][key]
+            if key in self.server.sessions[self.sid]['query_dict']:
+                kwargs[key] = self.server.sessions[self.sid]['query_dict'][key]
 
         return kwargs
-
-    def get_query_dict(self):
-        """
-        Parses query string from URL to a dictionary and updates self.server.sessions[self.sid]['get_query_dict'].
-
-        Returns
-        -------
-        dict[str, list[str]]
-        """
-        query_dict = urllib.parse.parse_qs(urllib3.util.parse_url(self.path).query)
-
-        return query_dict
