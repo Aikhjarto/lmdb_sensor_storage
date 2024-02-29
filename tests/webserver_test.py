@@ -42,6 +42,12 @@ class UnitTests(unittest.TestCase):
         for i in range(100):
             s.write_value(date=self.reference_date - datetime.timedelta(seconds=i), value=math.sqrt(i))
 
+        s = Sensor(mdb_filename=self.mdb_filename, sensor_name='sensor_RGBC', data_format='ffff')
+        s.metadata['field_names'] = ('R', 'G', 'B', 'I')
+        for i in range(100):
+            s.write_value(date=self.reference_date - datetime.timedelta(seconds=i),
+                          value=[math.sqrt(i), math.log10(i+1), i, math.log2(i+1)])
+
     def tearDown(self) -> None:
         self.server.shutdown()
         self.server.server_close()
@@ -55,7 +61,7 @@ class UnitTests(unittest.TestCase):
 
         data = req.json()
         self.assertEqual(self.mdb_filename, data['filename'])
-        self.assertEqual(2, len(data['sensors']))
+        self.assertEqual(3, len(data['sensors']))
         self.assertEqual(150, data['sensors']['sensor1']['entries'])
         self.assertEqual(100, data['sensors']['sensor2']['entries'])
         self.assertEqual('V', data['sensors']['sensor1']['meta']['unit'])
@@ -84,6 +90,13 @@ class UnitTests(unittest.TestCase):
         req = requests.request('GET', f'{self.base_url}/data?sensor_name=sensor2', timeout=1)
         self.assertEqual(200, req.status_code)
         self.assertEqual(len(req.text.split('\n')), 101)
+
+        req = requests.request('GET', f'{self.base_url}/data',
+                               params={'sensor_name': 'sensor_RGBC',
+                                       'include_header': 'true'},
+                               timeout=1)
+        self.assertEqual(200, req.status_code)
+        self.assertEqual(len(req.text.split('\n')), 102)
 
         # error message when requesting more than one sensor name
         req = requests.request('GET', f'{self.base_url}/data',

@@ -116,6 +116,7 @@ class StructPacker(Packer):
     def __init__(self, fmt_str: str):
         super().__init__()
         self._fmt_str = str(fmt_str)
+        self._num_fields = len(struct.unpack(self._fmt_str, b'0' * struct.calcsize(self._fmt_str)))
 
     def pack(self, x: Iterable) -> bytes:
         return struct.pack(self._fmt_str, *x)

@@ -21,6 +21,7 @@ from lmdb_sensor_storage.generate_history_html import generate_history_div
 from lmdb_sensor_storage._http_request_handler import HTTPRequestHandler, logger, html_template
 from lmdb_sensor_storage.import_wunderground import import_wunderground_station
 from lmdb_sensor_storage._parser import as_datetime
+from lmdb_sensor_storage._packer import StructPacker
 
 
 def strtobool(val: str) -> bool:
@@ -313,11 +314,25 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_chunked_header()
             self.end_headers()
 
-            if self.server.sessions[self.sid]['query_dict'].get('include_header', False):
-                self.write_chunked(f"Time;{sensor_name}\n".encode())
+            if type(self.server.sensor_storage[sensor_name]._value_packer) is StructPacker:
+                if self.server.sessions[self.sid]['query_dict'].get('include_header', False):
+                    num_fields = self.server.sensor_storage[sensor_name]._value_packer._num_fields
+                    field_names = self.server.sensor_storage[sensor_name].metadata.get('field_names', ())
+                    if len(field_names) != num_fields:
+                        field_names = [f'"{i}"' for i in range(num_fields)]
+                    else:
+                        field_names = [f'"{i}"' for i in field_names]
 
-            for d, v in self.server.sensor_storage[sensor_name].items(**kwargs):
-                self.write_chunked(f'{d.isoformat()};{v}\n'.encode())
+                    self.write_chunked(f'"Time";{";".join(field_names)}\n'.encode())
+
+                for d, v in self.server.sensor_storage[sensor_name].items(**kwargs):
+                    self.write_chunked(f'{d.isoformat()};{";".join([f"{field}" for field in v])}\n'.encode())
+            else:
+                if self.server.sessions[self.sid]['query_dict'].get('include_header', False):
+                    self.write_chunked(f"Time;{sensor_name}\n".encode())
+
+                for d, v in self.server.sensor_storage[sensor_name].items(**kwargs):
+                    self.write_chunked(f'{d.isoformat()};{v}\n'.encode())
 
             self.end_write_chunked()
 
