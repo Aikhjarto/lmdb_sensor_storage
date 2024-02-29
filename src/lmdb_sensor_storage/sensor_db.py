@@ -228,6 +228,7 @@ class Sensors(Mapping):
             meta = sensor.metadata
             if meta:
                 d_s['meta'] = meta.as_dict()
+            d_s['data_format'] = sensor.data_format
             d[sensor_name] = d_s
         return d
 

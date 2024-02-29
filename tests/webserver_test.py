@@ -60,6 +60,8 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(100, data['sensors']['sensor2']['entries'])
         self.assertEqual('V', data['sensors']['sensor1']['meta']['unit'])
         self.assertEqual('V', data['sensors']['sensor2']['meta']['unit'])
+        self.assertEqual('f', data['sensors']['sensor2']['data_format'])
+        self.assertEqual('f', data['sensors']['sensor2']['data_format'])
 
     def test_get_plotly_js(self):
         req = requests.request('GET', f'{self.base_url}/plotly.min.js', timeout=1)
