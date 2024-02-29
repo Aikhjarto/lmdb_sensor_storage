@@ -84,6 +84,27 @@ class UnitTests(unittest.TestCase):
         req = requests.request('GET', 'http://localhost:8000/data', timeout=1)
         self.assertEqual(422, req.status_code)
 
+        # get most recent value
+        req = requests.request('GET', 'http://localhost:8000/data', timeout=1,
+                               params= {'sensor_name': "sensor1",
+                                        'since': self.reference_date})
+        self.assertEqual(200, req.status_code)
+        self.assertEqual(2, len(req.text.split('\n')))
+
+        # get last 10 seconds requested in isoformat
+        req = requests.request('GET', 'http://localhost:8000/data', timeout=1,
+                               params= {'sensor_name': "sensor1",
+                                        'since': self.reference_date-datetime.timedelta(seconds=10)})
+        self.assertEqual(200, req.status_code)
+        self.assertEqual(12, len(req.text.split('\n')))
+
+        # get last 10 seconds requested as timestamp
+        req = requests.request('GET', 'http://localhost:8000/data', timeout=1,
+                               params= {'sensor_name': "sensor1",
+                                        'since': (self.reference_date-datetime.timedelta(seconds=10)).timestamp()})
+        self.assertEqual(200, req.status_code)
+        self.assertEqual(12, len(req.text.split('\n')))
+
     def test_get_nodered_chart(self):
         req = requests.request('GET', 'http://localhost:8000/nodered_chart', timeout=1)
         self.assertEqual(422, req.status_code)

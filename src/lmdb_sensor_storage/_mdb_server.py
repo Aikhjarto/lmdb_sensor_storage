@@ -17,17 +17,15 @@ import socket
 import socketserver
 import urllib.parse
 from random import randint
+import traceback
 from threading import Lock
 from typing import List
-import traceback
-
 import urllib3
-
 from lmdb_sensor_storage import LMDBSensorStorage
 from lmdb_sensor_storage.generate_history_html import generate_history_div
 from lmdb_sensor_storage._http_request_handler import HTTPRequestHandler, logger, html_template
 from lmdb_sensor_storage.import_wunderground import import_wunderground_station
-from lmdb_sensor_storage._parser import fromisoformat
+from lmdb_sensor_storage._parser import as_datetime
 
 
 class DatetimeTimestampEncoder(json.JSONEncoder):
@@ -233,7 +231,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             with self.server.my_lock:
                 for key in ('since', 'until'):  # parse to datetime
                     if key in query_dict:
-                        self.server.sessions[self.sid]['get_query_dict'][key] = fromisoformat(query_dict[key][0])
+                        self.server.sessions[self.sid]['get_query_dict'][key] = as_datetime(query_dict[key][0])
 
                 for key in ('decimate_to_s',):  # parse to float
                     if key in query_dict:
@@ -251,9 +249,10 @@ class MDBRequestHandler(HTTPRequestHandler):
                     self.server.sessions[self.sid]['get_query_dict']['sensor_name'] = query_dict['sensor_name']
 
         except ValueError as error:
+
             self.send_error(422, message=str(error),
-                            explain='Malformed request "%s" resulting in %s' %
-                                    (self.path, error))
+                            explain=f'Malformed request {self.path} resulting in error {error}\n '
+                                    f'{traceback.format_exc()}')
             logger.info('Malformed request "%s" resulting in %s',
                         self.path, error)
             return error
@@ -506,7 +505,7 @@ class MDBRequestHandler(HTTPRequestHandler):
     def do_POST(self):
         if self.path == '/add_sample':
             timestamp, value, sensor_name = self.rfile.read().decode().split(';', 3)
-            self.server.sensor_storage[sensor_name][fromisoformat(timestamp)] = float(value)
+            self.server.sensor_storage[sensor_name][as_datetime(timestamp)] = float(value)
         elif self.path.startswith('/time'):
 
             payload = self.rfile.read(int(self.headers.get('content-length')))
@@ -514,7 +513,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             timestamp = d.get('timestamp')
 
             try:
-                timestamp = fromisoformat(timestamp[0])
+                timestamp = as_datetime(timestamp[0])
                 assert timestamp is not None
             except (IndexError, TypeError, ValueError, AssertionError):
                 msg = f'parameter "timestamp"={timestamp} is not a valid ISO formatted timestamp'
