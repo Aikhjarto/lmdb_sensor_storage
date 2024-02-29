@@ -113,12 +113,12 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(422, req.status_code)
 
         req = requests.request('GET', f'{self.base_url}/nodered_chart',
-                               headers={'X-Sensornames': '["sensor1", "sensor2"]'}, timeout=1)
+                               params={'sensor_name': ["sensor1", "sensor2"]}, timeout=1)
         self.assertEqual(200, req.status_code)
         self.assertEqual(1, len(req.json()))
 
         req = requests.request('GET', f'{self.base_url}/nodered_chart',
-                               headers={'X-Sensornames': '["sensor3"]'}, timeout=1)
+                               params={'sensor_name': ["sensor1", "sensor2"]}, timeout=1)
         self.assertEqual(200, req.status_code)
         self.assertEqual(1, len(req.json()))
 
