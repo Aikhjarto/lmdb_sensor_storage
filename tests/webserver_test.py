@@ -83,6 +83,11 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(200, req.status_code)
         self.assertEqual(len(req.text.split('\n')), 101)
 
+        # error message when requesting more than one sensor name
+        req = requests.request('GET', f'{self.base_url}/data',
+                               params={'sensor_name': ["sensor1", "sensor2"]}, timeout=1)
+        self.assertEqual(422, req.status_code)
+
         # error message due to request data with no sensor name
         req = requests.request('GET', f'{self.base_url}/data', timeout=1)
         self.assertEqual(422, req.status_code)
