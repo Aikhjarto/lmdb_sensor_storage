@@ -2,13 +2,13 @@ import logging
 import os
 from datetime import datetime, timedelta
 from typing import (MutableMapping, Dict, Mapping, Iterable, Sequence, TypeVar,
-                    Union, Tuple, Any, List, SupportsFloat)
+                    Union, Tuple, Any, List, SupportsFloat, Callable)
 from typing_extensions import Literal
 import lmdb
 import numpy as np
 
 from lmdb_sensor_storage._packer import (BytesPacker, StringPacker, JSONPacker, DatetimePacker, YamlPacker, FloatPacker,
-                                         IntPacker, StructPacker, RegexPacker)
+                                         IntPacker, StructPacker, RegexPacker, Packer)
 from lmdb_sensor_storage._parser import as_datetime
 
 logger = logging.getLogger('lmdb_sensor_storage.db')
@@ -22,8 +22,8 @@ class Manager:
 
     This class provides a more thread-safe interface to lmdb.
 
-    References
-    ----------
+    Notes
+    -----
     .. [1] https://lmdb.readthedocs.io/en/release/#environment-class
     """
 
@@ -150,6 +150,7 @@ class LMDBDict(MutableMapping):
 
     Keys and values can be accessed similar to a dictionary.
     """
+    _value_packer: Packer
 
     def __init__(self, mdb_filename: str, db_name: str):
         self._mdb_filename = os.path.realpath(mdb_filename)
@@ -454,7 +455,9 @@ class TimestampBytesDB(LMDBDict):
     def __repr__(self):
         return super().__repr__() + f' from {self.get_first_timestamp()} to {self.get_last_timestamp()}'
 
-    def write_value(self, date: datetime, value, only_if_value_changed=False, max_age_seconds=None):
+    def write_value(self, date: datetime, value: Any,
+                    only_if_value_changed: bool = False,
+                    max_age_seconds: float = None):
         """
         Write a new value at date.
         If date already existed, the value is updated.
@@ -500,7 +503,9 @@ class TimestampBytesDB(LMDBDict):
 
         return result
 
-    def delete_entries(self, since: Union[str, datetime, None] = None, until: Union[str, datetime, None] = None):
+    def delete_entries(self,
+                       since: Union[str, datetime, None] = None,
+                       until: Union[str, datetime, None] = None) -> bool:
 
         since = as_datetime(since, none_ok=True)
         until = as_datetime(until, none_ok=True)
@@ -593,8 +598,10 @@ class TimestampBytesDB(LMDBDict):
                 else:
                     return
 
-    def _get_timespan_decimated(self, decimate_to_s, since=None, until=None, limit=None, timestamp_chunker=None,
-                                value_chunker=None):
+    def _get_timespan_decimated(self, decimate_to_s: Union[Literal['auto'], SupportsFloat],
+                                since: datetime = None, until: datetime = None, limit: int = None,
+                                timestamp_chunker: Callable[[Sequence[datetime]], Sequence[datetime]] = None,
+                                value_chunker: Callable[[Sequence[_T]], Sequence[_T]] = None):
         for timestamp_list, value_list in self._get_timespan_chunked(decimate_to_s=decimate_to_s,
                                                                      since=since, until=until,
                                                                      limit=limit):
@@ -646,11 +653,15 @@ class TimestampBytesDB(LMDBDict):
                 dates = [row_date, ]
                 n = 1
 
-    def values(self, since=None, until=None, endpoint=False, limit=None) -> List[Any]:
+    def values(self, since: datetime = None, until: datetime = None,
+               endpoint: bool = False, limit: int = None) -> List[Any]:
         return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='values'))
 
-    def items(self, first=None, last=None, since=None, until=None, endpoint=False, decimate_to_s=None, limit=None,
-              timestamp_chunker=None, value_chunker=None) -> List[Tuple[datetime, Any]]:
+    def items(self, first: bool = None, last: bool = None,
+              since: datetime = None, until: datetime = None,
+              endpoint: bool = False, decimate_to_s: float = None, limit: int = None,
+              timestamp_chunker: Callable[[Sequence[datetime]], Sequence[datetime]] = None,
+              value_chunker: Callable[[Sequence[datetime]], Sequence[datetime]] = None) -> List[Tuple[datetime, Any]]:
         if decimate_to_s:
             return list(self._get_timespan_decimated(since=since, until=until, decimate_to_s=decimate_to_s, limit=limit,
                                                      timestamp_chunker=timestamp_chunker, value_chunker=value_chunker))
@@ -669,7 +680,8 @@ class TimestampBytesDB(LMDBDict):
             values.append(value)
         return keys, values
 
-    def keys(self, since=None, until=None, endpoint=False, limit=None) -> List[datetime]:
+    def keys(self, since: datetime = None, until: datetime = None,
+             endpoint: bool = False, limit: int = None) -> List[datetime]:
         return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='keys'))
 
     def get_first_timestamp(self) -> datetime:
@@ -697,7 +709,7 @@ class TimestampBytesDB(LMDBDict):
         return self._get_sample(last=True, get_value=True)
 
     @property
-    def statistics(self):
+    def statistics(self) -> Dict[str, Union[str, Dict]]:
         d_s = {}
         with manager.get_transaction(self._mdb_filename, self._db_name) as txn:
             # noinspection PyArgumentList
@@ -718,7 +730,7 @@ class TimestampBytesDB(LMDBDict):
 
         return d_s
 
-    def _get_sample(self, last=False, get_value=False):
+    def _get_sample(self, last: bool = False, get_value: bool = False):
         if manager.db_exists(self._mdb_filename, self._db_name):
             with manager.get_transaction(self._mdb_filename, self._db_name) as txn:
                 c = txn.cursor()

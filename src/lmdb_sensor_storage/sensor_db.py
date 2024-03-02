@@ -6,7 +6,8 @@ from lmdb_sensor_storage.db import manager, StringYamlDB, TimestampBytesDB, Time
 from lmdb_sensor_storage._parser import as_datetime
 from lmdb_sensor_storage._packer import BytesPacker, StringPacker, JSONPacker, FloatPacker, \
     StructPacker
-from typing import Mapping, List, Sequence
+from typing import Mapping, List, Sequence, Union, Any
+from typing_extensions import Literal
 import logging
 
 logger = logging.getLogger('lmdb_sensor_storage.storage')
@@ -78,7 +79,7 @@ class Sensor(TimestampBytesDB):
         return self._data_format
 
     @data_format.setter
-    def data_format(self, data_format):
+    def data_format(self, data_format: Union[str, None]):
 
         if data_format is None:
             self._value_packer = None
@@ -104,19 +105,19 @@ class Sensor(TimestampBytesDB):
         self._format_db.write_value(datetime.now(), data_format, only_if_value_changed=True)
         self._data_format = data_format
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: datetime, value):
         if not self.data_format:
             self.data_format = guess_format_string(value)
         return super().__setitem__(key, value)
 
-    def write_value(self, date, value, only_if_value_changed=False, max_age_seconds=None):
+    def write_value(self, date: datetime, value, only_if_value_changed: bool = False, max_age_seconds: float = None):
         if not self.data_format:
             self.data_format = guess_format_string(value)
         return super().write_value(date, value,
                                    only_if_value_changed=only_if_value_changed,
                                    max_age_seconds=max_age_seconds)
 
-    def write_values(self, dates, values):
+    def write_values(self, dates: Sequence[datetime], values: Sequence[Any]):
         if not self.data_format:
             self.data_format = guess_format_string(values[0])
         return super().update([(x, y) for x, y in zip(dates, values)])
@@ -143,7 +144,7 @@ class TimestampNotesDB(TimestampYAMLDB):
     def __init__(self, mdb_filename, db_name):
         super().__init__(mdb_filename, db_name)
 
-    def add_note(self, short, long=None, timestamp=None):
+    def add_note(self, short: str, long: str = None, timestamp: Union[str, datetime, int, float] = None):
         if timestamp is None:
             timestamp = datetime.now()
         else:
@@ -157,12 +158,12 @@ class TimestampNotesDB(TimestampYAMLDB):
 
 
 class Notes(TimestampNotesDB):
-    def __init__(self, mdb_filename):
+    def __init__(self, mdb_filename: str):
         super().__init__(mdb_filename, 'notes')
 
 
 class GroupDefinitions(StringRegexpDB):
-    def __init__(self, mdb_filename):
+    def __init__(self, mdb_filename: str):
         super().__init__(mdb_filename, 'plot_groups')
 
 
@@ -179,7 +180,7 @@ class Sensors(Mapping):
     def mdb_filename(self):
         return self._mdb_filename
 
-    def _get(self, what='keys'):
+    def _get(self, what: Literal['values', 'keys', 'items'] = 'keys'):
         with manager.get_environment(self._mdb_filename).begin() as txn:
             for key, val in txn.cursor():
                 key_str = key.decode()
@@ -193,7 +194,7 @@ class Sensors(Mapping):
                     else:
                         raise NotImplementedError
 
-    def __getitem__(self, name) -> Sensor:
+    def __getitem__(self, name: str) -> Sensor:
         if not isinstance(name, str):
             raise TypeError
         return Sensor(self._mdb_filename, name)
@@ -210,7 +211,7 @@ class Sensors(Mapping):
     def items(self):
         return list(self._get(what='items'))
 
-    def __contains__(self, name):
+    def __contains__(self, name: str):
         for key in self.__iter__():
             if name == key:
                 return True
@@ -219,7 +220,7 @@ class Sensors(Mapping):
     def __len__(self):
         return len(tuple(self.__iter__()))
 
-    def __delitem__(self, name):
+    def __delitem__(self, name: str):
         for prefix in ('data_', 'meta_', 'format_', 'notes_'):
             db_name = prefix + name
             manager.delete_db(self._mdb_filename, db_name)
@@ -267,7 +268,7 @@ class LMDBSensorStorage(Sensors):
                 'filesize': filesize,
                 'sensors': super().statistics}
 
-    def get_non_empty_sensor_names(self):
+    def get_non_empty_sensor_names(self) -> List[str]:
         stat = self.statistics
 
         result = []
@@ -276,7 +277,7 @@ class LMDBSensorStorage(Sensors):
                 result.append(key)
         return result
 
-    def get_non_empty_sensors(self):
+    def get_non_empty_sensors(self) -> List[Sensor]:
         return [Sensor(self._mdb_filename, sensor_name) for sensor_name in self.get_non_empty_sensor_names()]
 
     def get_node_red_graph_data(self, sensor_names: Sequence[str], **kwargs):
@@ -301,7 +302,7 @@ class LMDBSensorStorage(Sensors):
         manager.close(self._mdb_filename)
 
 
-def try_float(x):
+def try_float(x) -> bool:
     try:
         float(x)
         return True

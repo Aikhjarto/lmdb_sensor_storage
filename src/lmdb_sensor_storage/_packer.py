@@ -75,7 +75,7 @@ class JSONPacker(Packer):
 
 
 class YamlPacker(Packer):
-    def pack(self, x) -> bytes:
+    def pack(self, x: Any) -> bytes:
 
         if isinstance(x, bytes):
             x = x.decode()
@@ -89,7 +89,7 @@ class YamlPacker(Packer):
 
         return yaml.safe_dump(x).encode()
 
-    def unpack(self, x: bytes):
+    def unpack(self, x: bytes) -> Any:
         return yaml.safe_load(x.decode())
 
 
@@ -121,7 +121,7 @@ class StructPacker(Packer):
     def pack(self, x: Iterable) -> bytes:
         return struct.pack(self._fmt_str, *x)
 
-    def unpack(self, x: bytes) -> Tuple[Any]:
+    def unpack(self, x: bytes) -> Tuple[Any, ...]:
         return struct.unpack(self._fmt_str, x)
 
 
@@ -131,7 +131,7 @@ class FloatsPacker(Packer):
         data = [float(d) for d in x]
         return struct.pack(f'{len(data)}f', *data)
 
-    def unpack(self, x: bytes) -> Tuple[float]:
+    def unpack(self, x: bytes) -> Tuple[float, ...]:
         return struct.unpack(f'{len(x)//4}f', x)
 
 

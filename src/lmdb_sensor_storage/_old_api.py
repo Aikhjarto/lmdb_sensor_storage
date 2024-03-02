@@ -65,7 +65,7 @@ def pack(data: Union[Tuple, List, bytes, float, int], pack_str=None) -> bytes:
         return struct.pack(pack_str, data)
 
 
-def unpack(data: bytes, pack_str=None) -> Tuple[Any]:
+def unpack(data: bytes, pack_str=None) -> Tuple[Any, ...]:
     if not pack_str:
         pack_str = f'{len(data) // 4}f'
     return struct.unpack(pack_str, data)

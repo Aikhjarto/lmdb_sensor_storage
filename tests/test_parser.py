@@ -2,7 +2,7 @@ import math
 
 from lmdb_sensor_storage._parser import as_datetime
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 from lmdb_sensor_storage.sensor_db import guess_format_string
 
@@ -65,10 +65,11 @@ class TestDatetime(unittest.TestCase):
         with self.assertRaises(ValueError):
             as_datetime("1xs")
 
+    # noinspection PyTypeChecker
     def test_wrong_type(self):
         with self.assertRaises(ValueError):
-             as_datetime("1xs".encode())
-             as_datetime("1672635954s".encode())
+            as_datetime("1xs".encode())
+            as_datetime("1672635954s".encode())
 
 
 if __name__ == "__main__":

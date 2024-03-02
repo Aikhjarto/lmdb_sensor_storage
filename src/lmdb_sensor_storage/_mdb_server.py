@@ -13,7 +13,7 @@ import urllib.parse
 from random import randint
 import traceback
 from threading import Lock
-from typing import List, Union
+from typing import List, Union, Any, Dict
 from typing_extensions import Literal
 import urllib3
 from lmdb_sensor_storage import LMDBSensorStorage
@@ -71,6 +71,8 @@ class MDBServer(socketserver.ThreadingTCPServer):
 
 
 class MDBRequestHandler(HTTPRequestHandler):
+    # typehints
+    query_dict: Dict[str, Any]
     server: MDBServer
 
     protocol_version = "HTTP/1.1"  # default is HTTP/1.0, but this doesn't support Transfer-Encoding: chunked
@@ -227,7 +229,7 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         try:
             self.query_dict = urllib.parse.parse_qs(urllib3.util.parse_url(self.path).query)
-            # assert query_dict is of type dict[str, list[str]]
+            # at this point self. query_dict is of type Dict[str, list[str]]
 
             for key in ('since', 'until'):  # parse to datetime
                 if key in self.query_dict:
