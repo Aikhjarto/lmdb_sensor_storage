@@ -785,7 +785,7 @@ class TimestampFloatDB(TimestampBytesDB):
     def __init__(self, mdb_filename, db_name):
         super().__init__(mdb_filename, db_name)
 
-        self._value_packer = FloatPacker
+        self._value_packer = FloatPacker()
 
 
 class TimestampIntDB(TimestampBytesDB):
