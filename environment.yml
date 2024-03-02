@@ -1,0 +1,15 @@
+name: lmdb_sensor_storage
+channels:
+    - defaults
+dependencies:
+    - python>=3.6
+    - lmdb
+    - numpy>=1.7
+    - plotly>=4.0
+    - urllib3
+    - PyYAML
+    - requests
+    - regex
+    - typing_extensions
+    - conda-forge::paho-mqtt
+

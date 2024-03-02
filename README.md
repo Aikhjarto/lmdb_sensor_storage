@@ -104,3 +104,19 @@ Systemd service and timer files underground import, mqtt subscriber, and the vie
 
   * `notes` for annotations when something auxiliar has changed
     * Keys are timestamps in ISO-format
+
+# Requirements
+A requirements.txt for pip and an environment.yml for conda/mamba is provided. 
+
+For openSUSE Leap 15.5, all dependencies for python3.6 can be installed via zypper
+```bash
+zypper in python3-lmdb \
+    python3-numpy \
+    python3-plotly \
+    python3-urllib3 \
+    python3-paho-mqtt \
+    python3-PyYAML \
+    python3-requests \
+    python3-regex \
+    python3-typing_extensions
+```

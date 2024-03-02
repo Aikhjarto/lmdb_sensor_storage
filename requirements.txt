@@ -1,12 +1,9 @@
-brotlipy
 lmdb
 numpy>=1.7
 plotly>=4.0
-pandas>1.0
 urllib3
 paho-mqtt
 PyYAML
 requests
-flatdict
 regex
 typing_extensions
