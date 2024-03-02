@@ -321,11 +321,15 @@ class LMDBDict(MutableMapping):
                     raise KeyError
 
     def copy_to(self, new_db_name, export_mdb_filename=None):
+        """
+        Copies a Sensor to be a new location.
+        If the desitnation already exists, a RuntimeError is raised.
+        """
         if not export_mdb_filename:
             export_mdb_filename = self.mdb_filename
         export_mdb_filename = os.path.realpath(export_mdb_filename)
 
-        if manager.db_exists(self.mdb_filename, new_db_name):
+        if manager.db_exists(export_mdb_filename, new_db_name):
             raise RuntimeError(f'DB "{new_db_name}" already exists in "{export_mdb_filename}"')
         else:
             # Note: all db handles must be genereated befor a transaction is created,

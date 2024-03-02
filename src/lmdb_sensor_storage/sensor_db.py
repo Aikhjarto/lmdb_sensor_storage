@@ -121,7 +121,11 @@ class Sensor(TimestampBytesDB):
             self.data_format = guess_format_string(values[0])
         return super().update([(x, y) for x, y in zip(dates, values)])
 
-    def copy_to(self, new_sensor_name, export_mdb_filename=None):
+    def copy_to(self, new_sensor_name: str, export_mdb_filename: str = None):
+        """
+        Copies a Sensor to be a new location.
+        If the desitnation already exists, a RuntimeError is raised.
+        """
         if not export_mdb_filename:
             export_mdb_filename = self.mdb_filename
 

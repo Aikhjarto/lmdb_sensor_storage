@@ -1,3 +1,4 @@
+import os.path
 import unittest
 from lmdb_sensor_storage.db import *
 from lmdb_sensor_storage.sensor_db import *
@@ -324,12 +325,28 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
         s.write_values(dates, values)
         self.assertEqual(s.items(), list(zip(dates, values)))
 
+        # copy Sensor to new name in new file
         s.copy_to('j2')
-
         s2 = Sensor(self.mdb_filename, 'j2')
         self.assertEqual(s.metadata, s2.metadata)
         self.assertEqual(s.data_format, s2.data_format)
         self.assertEqual(s.items(), s2.items())
+
+        # error is raised if copied to already existing location is same file
+        with self.assertRaises(RuntimeError):
+            s.copy_to('j2')
+
+        # test copy sensor to new location in new file
+        new_mdb_filename = os.path.join(self.tempfolder, 'unittest2.mdb')
+        s.copy_to('j', new_mdb_filename)
+        s2 = Sensor(new_mdb_filename, 'j')
+        self.assertEqual(s.metadata, s2.metadata)
+        self.assertEqual(s.data_format, s2.data_format)
+        self.assertEqual(s.items(), s2.items())
+
+        # error is raised if copied to already existing location is new file
+        with self.assertRaises(RuntimeError):
+            s.copy_to('j', new_mdb_filename)
 
 
 class TestcaseLMDB(EmptyDatabaseMixin, unittest.TestCase):
