@@ -3,8 +3,9 @@ import numpy as np
 import struct
 import os
 import yaml
-
-from lmdb_sensor_storage.db import manager, logger
+import logging
+logger = logging.getLogger('lmdb_sensor_storage.db')
+from lmdb_sensor_storage.db._manager import manager
 from lmdb_sensor_storage._parser import as_datetime
 from typing import Iterable, List, Union, Tuple, Any
 

@@ -16,12 +16,13 @@ from threading import Lock
 from typing import List, Union, Any, Dict
 from typing_extensions import Literal
 import urllib3
-from lmdb_sensor_storage import LMDBSensorStorage
+from lmdb_sensor_storage.db.sensor_db import LMDBSensorStorage
 from lmdb_sensor_storage.generate_history_html import generate_history_div
-from lmdb_sensor_storage._http_request_handler import HTTPRequestHandler, logger, html_template
+from lmdb_sensor_storage.mdb_server._http_request_handler import HTTPRequestHandler, logger
+from lmdb_sensor_storage.mdb_server import html_template
 from lmdb_sensor_storage.import_wunderground import import_wunderground_station
 from lmdb_sensor_storage._parser import as_datetime
-from lmdb_sensor_storage._packer import StructPacker
+from lmdb_sensor_storage.db.packer import StructPacker
 
 
 def strtobool(val: str) -> bool:

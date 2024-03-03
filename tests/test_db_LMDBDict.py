@@ -1,6 +1,6 @@
 import unittest
 
-from lmdb_sensor_storage.db import LMDBDict
+from lmdb_sensor_storage.db.dict_db import LMDBDict
 from tests import EmptyDatabaseMixin
 
 

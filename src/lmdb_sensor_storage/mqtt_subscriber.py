@@ -1,7 +1,7 @@
 #!/bin/env python3
 import paho.mqtt.client as mqtt
 from datetime import datetime
-from lmdb_sensor_storage.sensor_db import Sensor
+from lmdb_sensor_storage.db.sensor_db import Sensor
 import json
 import argparse
 import logging

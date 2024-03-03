@@ -2,7 +2,7 @@ import os
 import shutil
 import tempfile
 
-from lmdb_sensor_storage.db import manager
+from lmdb_sensor_storage.db._manager import manager
 
 
 class EmptyDatabaseMixin:

@@ -5,7 +5,7 @@ import os
 import json
 import requests
 import math
-from lmdb_sensor_storage.sensor_db import Sensor
+from lmdb_sensor_storage.db.sensor_db import Sensor
 from lmdb_sensor_storage._parser import add_logging, setup_logging, fromisoformat
 
 logger = logging.getLogger('lmdb_sensor_storage.wunderground')

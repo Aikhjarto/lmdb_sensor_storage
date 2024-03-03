@@ -1,1 +1,1 @@
-from .sensor_db import LMDBSensorStorage, Sensor
+from .db.sensor_db import LMDBSensorStorage, Sensor

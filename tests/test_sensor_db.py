@@ -1,6 +1,7 @@
 import unittest
 from datetime import datetime, timedelta
-from lmdb_sensor_storage.sensor_db import TimestampBytesDB, StringYamlDB
+from lmdb_sensor_storage.db.sensor_db import TimestampBytesDB
+from lmdb_sensor_storage.db.dict_db import StringYamlDB
 
 from tests import EmptyDatabaseMixin
 

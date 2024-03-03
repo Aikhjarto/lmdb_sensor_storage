@@ -1,5 +1,5 @@
 import unittest
-from lmdb_sensor_storage._packer import FloatPacker, IntPacker, StringPacker, JSONPacker
+from lmdb_sensor_storage.db.packer import FloatPacker, IntPacker, StringPacker, JSONPacker
 
 
 class TestcasePacker(unittest.TestCase):

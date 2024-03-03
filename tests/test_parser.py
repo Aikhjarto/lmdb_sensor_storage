@@ -4,7 +4,7 @@ from lmdb_sensor_storage._parser import as_datetime
 import unittest
 from datetime import datetime
 
-from lmdb_sensor_storage.sensor_db import guess_format_string
+from lmdb_sensor_storage.db.sensor_db import guess_format_string
 
 
 class TestDatetime(unittest.TestCase):

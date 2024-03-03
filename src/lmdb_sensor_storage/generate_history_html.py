@@ -9,10 +9,10 @@ import os
 import re
 import requests
 import uuid
-from lmdb_sensor_storage.sensor_db import LMDBSensorStorage
-from lmdb_sensor_storage.db import timestamp_chunker_center, value_chunker_mean, timestamp_chunker_minmeanmax, \
-    value_chunker_minmeanmax
-from lmdb_sensor_storage._http_request_handler import html_template
+from lmdb_sensor_storage.db.sensor_db import LMDBSensorStorage
+from lmdb_sensor_storage.db.chunker import timestamp_chunker_center, value_chunker_mean, value_chunker_minmeanmax, \
+    timestamp_chunker_minmeanmax
+from lmdb_sensor_storage.mdb_server import html_template
 from lmdb_sensor_storage._parser import add_logging, setup_logging, fromisoformat
 
 logger = logging.getLogger('lmdb_sensor_storage.history')

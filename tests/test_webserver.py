@@ -6,9 +6,9 @@ import shutil
 import tempfile
 import threading
 import unittest
-from lmdb_sensor_storage.db import manager
-from lmdb_sensor_storage.sensor_db import Sensor, Notes
-from lmdb_sensor_storage._mdb_server import MDBServer, MDBRequestHandler
+from lmdb_sensor_storage.db._manager import manager
+from lmdb_sensor_storage.db.sensor_db import Sensor, Notes
+from lmdb_sensor_storage.mdb_server._mdb_server import MDBServer, MDBRequestHandler
 
 
 class UnitTests(unittest.TestCase):

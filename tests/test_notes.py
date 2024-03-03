@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
 
-from lmdb_sensor_storage.sensor_db import Notes
+from lmdb_sensor_storage.db.sensor_db import Notes
 from tests import EmptyDatabaseMixin
 
 

@@ -11,7 +11,7 @@ CRITICAL = 2
 UNKNOWN = 3
 
 try:
-    from lmdb_sensor_storage.sensor_db import Sensor
+    from lmdb_sensor_storage.db.sensor_db import Sensor
 except ImportError:
     print('UNKNOWN - cannot find lmdb_sensor_storage module')
     exit(UNKNOWN)

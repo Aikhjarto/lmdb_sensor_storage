@@ -1,6 +1,6 @@
 import unittest
 
-from lmdb_sensor_storage.db import value_chunker_minmeanmax, value_chunker_mean
+from lmdb_sensor_storage.db.chunker import value_chunker_mean, value_chunker_minmeanmax
 
 
 class TestcaseChunker(unittest.TestCase):
