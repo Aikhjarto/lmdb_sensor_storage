@@ -123,6 +123,21 @@ class TestcaseLMDBDict(EmptyDatabaseMixin, unittest.TestCase):
         print(db.__repr__())
         print(db.__str__())
 
+    def test_double_open(self):
+        db = LMDBDict(self.mdb_filename, 'source')
+        db2 = LMDBDict(self.mdb_filename, 'source')
+
+        # no paralell transactions
+        db[b'x'] = b'3'
+        db[b'y'] = b'4'
+        self.assertEqual(db[b'x'], db2[b'x'])
+
+        # access same db while another transaction is open
+        for key_db, val_db in db._get(what='items'):
+            print('DB:', key_db, val_db)
+            for key_db2, val_db2 in db2._get(what='items'):
+                print('DB2:', key_db2, val_db2)
+
 
 if __name__ == "__main__":
     unittest.main()
