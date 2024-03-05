@@ -102,16 +102,57 @@ class LMDBDict(MutableMapping):
         del self[key]
         return value
 
+    def popitem(self):
+        """Return key/value tuple of last item inserted"""
+
+        if len(self) == 0:
+            raise KeyError('`popitem(): DB is empty')
+        key = None
+        value = None
+        if manager.db_exists(self._mdb_filename, self._db_name):
+            with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
+                c = txn.cursor()
+                if c.last():
+                    key = self._key_packer.unpack(c.key())
+                    value = self._value_packer.unpack(c.value())
+                    if not c.delete():
+                        raise IOError
+
+        if key is None:
+            raise KeyError('`popitem(): DB is empty')
+
+        return key, value
+
     def clear(self):
         for key in self.keys():
             del self[key]
 
     def setdefault(self, key, default=None):
+        """
+        Sets key to value "default", if key does not yet exist.
+        """
         if key in self:
             return self[key]
         else:
             self[key] = default
             return default
+
+    def __eq__(self, other):
+        if len(self) != len(other):
+            return False
+        for key, val in self.items():
+            if val != other[key]:
+                return False
+        return True
+
+    def __ne__(self, other):
+        if len(self) != len(other):
+            return True
+        for key, val in self.items():
+            if val != other[key]:
+                return True
+
+        return False
 
     def as_dict(self):
         d = {}
