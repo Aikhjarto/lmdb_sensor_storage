@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 
+# noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
 
 

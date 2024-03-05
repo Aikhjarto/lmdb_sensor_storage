@@ -1,4 +1,5 @@
 import unittest
+# noinspection PyProtectedMember
 from lmdb_sensor_storage._old_api import unpack, pack
 from lmdb_sensor_storage.db.sensor_db import guess_format_string
 
