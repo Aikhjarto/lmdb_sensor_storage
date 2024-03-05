@@ -21,7 +21,7 @@ class Packer:
 
 class BytesPacker(Packer):
 
-    def pack(self, x) -> bytes:
+    def pack(self, x: bytes) -> bytes:
         return x
 
     def unpack(self, x: bytes):
@@ -34,7 +34,7 @@ class StringPacker(Packer):
         data = str(x)
         return data.encode()
 
-    def unpack(self, x: bytes):
+    def unpack(self, x: bytes) -> str:
         return x.decode()
 
 
@@ -49,7 +49,7 @@ class DatetimePacker(Packer):
 
 class JSONPacker(Packer):
 
-    def pack(self, x: Union[bytes, str, Iterable, dict]):
+    def pack(self, x: Union[bytes, str, Iterable, dict]) -> bytes:
 
         if isinstance(x, bytes):
             x = x.decode()
@@ -70,7 +70,7 @@ class JSONPacker(Packer):
                 warnings.warn(f'keys {non_string} will be converted to string keys', RuntimeWarning)
         return json.dumps(x).encode()
 
-    def unpack(self, x):
+    def unpack(self, x) -> Any:
         return json.loads(x.decode())
 
 
