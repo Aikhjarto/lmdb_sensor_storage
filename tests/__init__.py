@@ -6,6 +6,7 @@ import tempfile
 from lmdb_sensor_storage.db._manager import manager
 
 
+# noinspection PyPep8Naming
 class EmptyDatabaseMixin:
     # noinspection PyAttributeOutsideInit
     def setUp(self):

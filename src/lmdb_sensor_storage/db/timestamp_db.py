@@ -2,8 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import (Dict, Sequence, Union, Tuple, Any, List, SupportsFloat, Callable)
 from typing_extensions import Literal
-
-from lmdb_sensor_storage.db.chunker import _T
+from lmdb_sensor_storage.db.chunker import _T, non_chunker
 from lmdb_sensor_storage.db._manager import manager
 from lmdb_sensor_storage.db.packer import (StringPacker, JSONPacker, DatetimePacker, YamlPacker, FloatPacker,
                                            IntPacker, StructPacker)
@@ -182,10 +181,10 @@ class TimestampBytesDB(LMDBDict):
                                                                      since=since, until=until,
                                                                      limit=limit):
             if timestamp_chunker is None:
-                timestamp_chunker = lambda x: x
+                timestamp_chunker = non_chunker
 
             if value_chunker is None:
-                value_chunker = lambda x: x
+                value_chunker = non_chunker
 
             for d, v in zip(timestamp_chunker(timestamp_list), value_chunker(value_list)):
                 yield d, v

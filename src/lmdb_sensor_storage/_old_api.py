@@ -4,10 +4,12 @@ import struct
 import os
 import yaml
 import logging
-logger = logging.getLogger('lmdb_sensor_storage.db')
+# noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
 from lmdb_sensor_storage._parser import as_datetime
 from typing import Iterable, List, Union, Tuple, Any
+
+logger = logging.getLogger('lmdb_sensor_storage.db')
 
 
 def _datetime2key(d: datetime) -> bytes:

@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
-
 from lmdb_sensor_storage import Sensor, LMDBSensorStorage
+# noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
 from tests import EmptyDatabaseMixin
 

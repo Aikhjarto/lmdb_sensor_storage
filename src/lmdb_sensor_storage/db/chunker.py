@@ -49,3 +49,7 @@ def timestamp_chunker_minmeanmax(x: Sequence[_T]) -> Sequence[_T]:
         return [x[0], x[0] + (x[-1] - x[0]) / 2, x[-1]]
     else:
         return x, x, x
+
+
+def non_chunker(x: Sequence[_T]) -> Sequence[_T]:
+    return x

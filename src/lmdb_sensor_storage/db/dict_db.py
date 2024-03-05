@@ -1,10 +1,8 @@
 import logging
 import os
 from typing import MutableMapping, Union, Mapping, Sequence, Tuple, Any, Iterable
-
-import lmdb
 from typing_extensions import Literal
-
+import lmdb
 from lmdb_sensor_storage.db._manager import manager
 from lmdb_sensor_storage.db.packer import Packer, BytesPacker, StringPacker, RegexPacker, JSONPacker, YamlPacker
 
