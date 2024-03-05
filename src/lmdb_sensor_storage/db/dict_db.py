@@ -104,7 +104,7 @@ class LMDBDict(MutableMapping):
 
     def clear(self):
         for key in self.keys():
-            del [key]
+            del self[key]
 
     def setdefault(self, key, default=None):
         if key in self:
