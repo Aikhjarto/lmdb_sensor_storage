@@ -7,7 +7,7 @@ from lmdb_sensor_storage.db._manager import manager
 from lmdb_sensor_storage._parser import as_datetime
 from lmdb_sensor_storage.db.packer import BytesPacker, StringPacker, JSONPacker, FloatPacker, \
     StructPacker
-from typing import Mapping, List, Sequence, Union, Any
+from typing import Mapping, List, Sequence, Union, Any, Dict
 from typing_extensions import Literal
 import logging
 
@@ -156,6 +156,16 @@ class TimestampNotesDB(TimestampYAMLDB):
             data['long'] = long
 
         self[timestamp] = data
+
+    def __setitem__(self, key, value: Union[str, Dict[str, str]]):
+        if isinstance(value, str):
+            data = {'short': value}
+            super().__setitem__(key, data)
+        elif isinstance(value, dict):
+            assert 'short' in value, 'Notes dictionary must have key "short"'
+            super().__setitem__(key, value)
+        else:
+            raise TypeError('only string or dictionary are allowed')
 
 
 class Notes(TimestampNotesDB):
