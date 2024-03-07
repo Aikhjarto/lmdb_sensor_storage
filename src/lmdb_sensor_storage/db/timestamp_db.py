@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-from typing import (Dict, Sequence, Union, Tuple, Any, List, SupportsFloat, Callable)
+from typing import (Dict, Sequence, Union, Tuple, Any, List, SupportsFloat, Callable, Iterator)
 from typing_extensions import Literal
 from lmdb_sensor_storage.db.chunker import _T, non_chunker
 from lmdb_sensor_storage.db._manager import manager
@@ -122,7 +122,9 @@ class TimestampBytesDB(LMDBDict):
         return result
 
     def _get_timespan(self, since: datetime = None, until: datetime = None, endpoint: bool = False, limit: int = None,
-                      what: Literal['keys', 'values', 'items'] = None):
+                      what: Literal['keys', 'values', 'items'] = None,
+                      at_timestamps: Iterator = None,
+                      at_timestamps_only=False):
 
         if not len(self):
             return
@@ -147,27 +149,91 @@ class TimestampBytesDB(LMDBDict):
         if not since <= until:
             raise RuntimeError(f'{since} is not before {until}')
 
+        yield_time_at_measurement_points = not at_timestamps or (at_timestamps and not at_timestamps_only)
+
+        if at_timestamps is not None:
+            # advance at_timestamps iterator to first value after `since`
+            next_requested_timestamp = as_datetime(at_timestamps.__next__())
+            while (not at_timestamps_only and next_requested_timestamp <= since) or \
+                  (at_timestamps_only and next_requested_timestamp < since):
+                next_requested_timestamp = as_datetime(at_timestamps.__next__())
+
+        count = 0
         if manager.db_exists(self._mdb_filename, self._db_name):
             with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
                 c = txn.cursor()
                 if c.first() and c.set_range(self._key_packer.pack(since)):
                     key = c.key()
                     key_unpacked = self._key_packer.unpack(key)
-                    count = 0
+
+                    if at_timestamps is not None and key_unpacked > next_requested_timestamp:
+                        # when the c points to a sample later than first requests timestamp
+                        c2 = txn.cursor()
+                        c2.set_key(c.key())
+                        c2.prev()
+                        key_unpacked2 = self._key_packer.unpack(c2.key())
+                        value_unpacked2 = self._value_packer.unpack(c2.value())
+                        while ((not at_timestamps_only and next_requested_timestamp <= key_unpacked2) or
+                               (at_timestamps_only and next_requested_timestamp < key_unpacked)):
+                            if what == 'keys':
+                                yield next_requested_timestamp
+                            elif what == 'values':
+                                yield value_unpacked2
+                            elif what == 'items':
+                                yield next_requested_timestamp, value_unpacked2
+                            else:
+                                raise NotImplementedError
+                            count += 1
+                            next_requested_timestamp = as_datetime(at_timestamps.__next__())
+
                     while key and (key_unpacked < until or (endpoint and key_unpacked == until)):
                         # loop until no more key before 'until' exists or deletion fails
                         if what == 'keys':
-                            yield key_unpacked
+                            if yield_time_at_measurement_points:
+                                yield key_unpacked
                         elif what == 'values':
-                            yield self._value_packer.unpack(c.value())
+                            value_unpacked = self._value_packer.unpack(c.value())
+                            if yield_time_at_measurement_points:
+                                yield value_unpacked
                         elif what == 'items':
-                            yield key_unpacked, self._value_packer.unpack(c.value())
+                            value_unpacked = self._value_packer.unpack(c.value())
+                            if yield_time_at_measurement_points:
+                                yield key_unpacked, value_unpacked
                         else:
                             raise NotImplementedError
                         count += 1
+
                         if c.next() and (limit is None or count <= limit):
+
+                            if at_timestamps is not None:
+                                # advance at_timestamps iterator to first value after `since`
+                                while ((not at_timestamps_only and next_requested_timestamp <= key_unpacked) or
+                                       (at_timestamps_only and next_requested_timestamp < since)):
+                                    next_requested_timestamp = as_datetime(at_timestamps.__next__())
+
                             key = c.key()
                             key_unpacked = self._key_packer.unpack(key)
+
+                            if at_timestamps is not None:
+
+                                while (next_requested_timestamp < key_unpacked
+                                       and (next_requested_timestamp < until or
+                                            (endpoint and next_requested_timestamp == until))):
+                                    if what == 'keys':
+                                        yield next_requested_timestamp
+                                    elif what == 'values':
+                                        yield value_unpacked
+                                    elif what == 'items':
+                                        yield next_requested_timestamp, value_unpacked
+                                    else:
+                                        raise NotImplementedError
+                                    count += 1
+                                    try:
+                                        next_requested_timestamp = as_datetime(at_timestamps.__next__())
+                                    except StopIteration:
+                                        at_timestamps = None
+                                        break
+
                         else:
                             break
                 else:
@@ -229,14 +295,17 @@ class TimestampBytesDB(LMDBDict):
                 n = 1
 
     def values(self, since: datetime = None, until: datetime = None,
-               endpoint: bool = False, limit: int = None) -> List[Any]:
-        return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='values'))
+               endpoint: bool = False, limit: int = None,
+               at_timestamps=None, at_timestamps_only=False) -> List[Any]:
+        return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='values',
+                                       at_timestamps=at_timestamps, at_timestamps_only=at_timestamps_only))
 
     def items(self, first: bool = None, last: bool = None,
               since: datetime = None, until: datetime = None,
               endpoint: bool = False, decimate_to_s: float = None, limit: int = None,
               timestamp_chunker: Callable[[Sequence[datetime]], Sequence[datetime]] = None,
-              value_chunker: Callable[[Sequence[datetime]], Sequence[datetime]] = None) -> List[Tuple[datetime, Any]]:
+              value_chunker: Callable[[Sequence[datetime]], Sequence[datetime]] = None,
+              at_timestamps=None, at_timestamps_only=False) -> List[Tuple[datetime, Any]]:
         if decimate_to_s:
             return list(self._get_timespan_decimated(since=since, until=until, decimate_to_s=decimate_to_s, limit=limit,
                                                      timestamp_chunker=timestamp_chunker, value_chunker=value_chunker))
@@ -245,7 +314,8 @@ class TimestampBytesDB(LMDBDict):
         elif last:
             return [(self.get_last_timestamp(), self.get_last_value())]
         else:
-            return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='items'))
+            return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='items',
+                                           at_timestamps=at_timestamps, at_timestamps_only=at_timestamps_only))
 
     def keys_values(self, **kwargs) -> Tuple[List[datetime], List[Any]]:
         keys = []
@@ -256,8 +326,10 @@ class TimestampBytesDB(LMDBDict):
         return keys, values
 
     def keys(self, since: datetime = None, until: datetime = None,
-             endpoint: bool = False, limit: int = None) -> List[datetime]:
-        return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='keys'))
+             endpoint: bool = False, limit: int = None,
+             at_timestamps=None, at_timestamps_only=False) -> List[datetime]:
+        return list(self._get_timespan(since=since, until=until, endpoint=endpoint, limit=limit, what='keys',
+                                       at_timestamps=at_timestamps, at_timestamps_only=at_timestamps_only))
 
     def get_first_timestamp(self) -> datetime:
         return self._get_sample(last=False)
