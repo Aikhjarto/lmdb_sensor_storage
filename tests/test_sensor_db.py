@@ -142,6 +142,15 @@ class TestcaseTimestampBytesDB_get_at_timestamps(EmptyDatabaseMixin, unittest.Te
         self.db[self.reference_date + timedelta(seconds=10.1)] = b'3'
         self.db[self.reference_date + timedelta(seconds=15)] = b'4'
 
+    def test_get_at_timestamp_on_empty(self):
+        db = TimestampBytesDB(self.mdb_filename, 'j')
+        data = db.items(at_timestamps=iter([self.reference_date]))
+        self.assertEqual([], list(data))
+
+    def test_get_at_timestamp_all_before_first_element(self):
+        data = self.db.items(at_timestamps=iter([self.reference_date + timedelta(seconds=i) for i in range(-4, -1)]))
+        self.assertEqual([], list(data))
+
     def test_get_at_timestamps(self):
         # test how at_timestamps return previous sensor value in times between measurements
         

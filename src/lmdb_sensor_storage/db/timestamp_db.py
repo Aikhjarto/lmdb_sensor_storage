@@ -152,11 +152,14 @@ class TimestampBytesDB(LMDBDict):
         yield_time_at_measurement_points = not at_timestamps or (at_timestamps and not at_timestamps_only)
 
         if at_timestamps is not None:
-            # advance at_timestamps iterator to first value after `since`
-            next_requested_timestamp = as_datetime(at_timestamps.__next__())
-            while (not at_timestamps_only and next_requested_timestamp <= since) or \
-                  (at_timestamps_only and next_requested_timestamp < since):
+            # advance at_timestamps iterator to first value after `since
+            try:
                 next_requested_timestamp = as_datetime(at_timestamps.__next__())
+                while (not at_timestamps_only and next_requested_timestamp <= since) or \
+                      (at_timestamps_only and next_requested_timestamp < since):
+                    next_requested_timestamp = as_datetime(at_timestamps.__next__())
+            except StopIteration:
+                return
 
         count = 0
         if manager.db_exists(self._mdb_filename, self._db_name):
@@ -167,10 +170,11 @@ class TimestampBytesDB(LMDBDict):
                     key_unpacked = self._key_packer.unpack(key)
 
                     if at_timestamps is not None and key_unpacked > next_requested_timestamp:
-                        # when the c points to a sample later than first requests timestamp
+                        # when the c points to a sample later than first requests timestamp, get a new data-cursor
+                        # and move it back one step
                         c2 = txn.cursor()
-                        c2.set_key(c.key())
-                        c2.prev()
+                        assert c2.set_key(c.key())
+                        assert c2.prev()
                         key_unpacked2 = self._key_packer.unpack(c2.key())
                         value_unpacked2 = self._value_packer.unpack(c2.value())
                         while ((not at_timestamps_only and next_requested_timestamp <= key_unpacked2) or
@@ -206,10 +210,17 @@ class TimestampBytesDB(LMDBDict):
                         if c.next() and (limit is None or count <= limit):
 
                             if at_timestamps is not None:
-                                # advance at_timestamps iterator to first value after `since`
-                                while ((not at_timestamps_only and next_requested_timestamp <= key_unpacked) or
-                                       (at_timestamps_only and next_requested_timestamp < since)):
-                                    next_requested_timestamp = as_datetime(at_timestamps.__next__())
+                                # in case, a measurement is excatly at a value from at_timestamp, it would be yiedled
+                                # twice. Thus advance at_timestamps iterator to first value after `key_unpacked`
+                                try:
+                                    while ((not at_timestamps_only and next_requested_timestamp <= key_unpacked) or
+                                           (at_timestamps_only and next_requested_timestamp < since)):
+                                        next_requested_timestamp = as_datetime(at_timestamps.__next__())
+                                except StopIteration:
+                                    if at_timestamps_only:
+                                        return
+                                    else:
+                                        at_timestamps = None
 
                             key = c.key()
                             key_unpacked = self._key_packer.unpack(key)
@@ -231,8 +242,11 @@ class TimestampBytesDB(LMDBDict):
                                     try:
                                         next_requested_timestamp = as_datetime(at_timestamps.__next__())
                                     except StopIteration:
-                                        at_timestamps = None
-                                        break
+                                        if at_timestamps_only:
+                                            return
+                                        else:
+                                            at_timestamps = None
+                                            break
 
                         else:
                             break
