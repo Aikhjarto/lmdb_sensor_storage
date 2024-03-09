@@ -82,4 +82,81 @@ class TestcaseLMDBSensorStorage(EmptyDatabaseMixin, unittest.TestCase):
                's2': [20.0, 30.0, 30.0]}
         self.assertEqual(ref, data)
 
+    def get_csv_empty(self):
+        db = LMDBSensorStorage(self.mdb_filename)
+        with self.assertRaises(KeyError):
+            db.get_csv('s1')
 
+    def test_get_csv_with_float(self):
+        s = Sensor(mdb_filename=self.mdb_filename, sensor_name='s1', data_format='f')
+        s[self.reference_date] = 1
+        s[self.reference_date + timedelta(seconds=5)] = 2
+        s[self.reference_date + timedelta(seconds=10.1)] = 3
+        s[self.reference_date + timedelta(seconds=15)] = 4
+
+        db = LMDBSensorStorage(self.mdb_filename)
+
+        # test without limits and without header
+        data = db.get_csv('s1')
+        ref = (b'2000-01-01T00:00:00;1.0\n'
+               b'2000-01-01T00:00:05;2.0\n'
+               b'2000-01-01T00:00:10.100000;3.0\n'
+               b'2000-01-01T00:00:15;4.0\n')
+        self.assertEqual(ref, data)
+
+        # test without limits and without header
+        data = db.get_csv('s1', include_header=True)
+        ref = (b'"Time";"s1"\n'
+               b'2000-01-01T00:00:00;1.0\n'
+               b'2000-01-01T00:00:05;2.0\n'
+               b'2000-01-01T00:00:10.100000;3.0\n'
+               b'2000-01-01T00:00:15;4.0\n')
+        self.assertEqual(ref, data)
+
+        # test without limits and without header
+        data = db.get_csv('s1', include_header=True)
+        ref = (b'"Time";"s1"\n'
+               b'2000-01-01T00:00:00;1.0\n'
+               b'2000-01-01T00:00:05;2.0\n'
+               b'2000-01-01T00:00:10.100000;3.0\n'
+               b'2000-01-01T00:00:15;4.0\n')
+        self.assertEqual(ref, data)
+
+    def test_get_csv_with_struct_no_fieldname(self):
+        s = Sensor(mdb_filename=self.mdb_filename, sensor_name='s1', data_format='fh')
+        s[self.reference_date] = (1.1, 1)
+        s[self.reference_date + timedelta(seconds=5)] = (2.2, 2)
+        s[self.reference_date + timedelta(seconds=10.1)] = (3.3, 3)
+        s[self.reference_date + timedelta(seconds=15)] = (4.4, 4)
+
+        db = LMDBSensorStorage(self.mdb_filename)
+
+        data = db.get_csv('s1', include_header=True)
+        ref = (b'"Time";"Field 0";"Field 1"\n'
+               b'2000-01-01T00:00:00;1.100000023841858;1\n'
+               b'2000-01-01T00:00:05;2.200000047683716;2\n'
+               b'2000-01-01T00:00:10.100000;3.299999952316284;3\n'
+               b'2000-01-01T00:00:15;4.400000095367432;4\n')
+        self.assertEqual(ref, data)
+
+    def test_get_csv_with_struct_and_fieldname(self):
+        s = Sensor(mdb_filename=self.mdb_filename, sensor_name='s1', data_format='fh')
+        s[self.reference_date] = (1.1, 1)
+        s[self.reference_date + timedelta(seconds=5)] = (2.2, 2)
+        s[self.reference_date + timedelta(seconds=10.1)] = (3.3, 3)
+        s[self.reference_date + timedelta(seconds=15)] = (4.4, 4)
+        s.metadata['field_names'] = ['A', 'B']
+
+        db = LMDBSensorStorage(self.mdb_filename)
+
+        data = db.get_csv('s1', include_header=True)
+        ref = (b'"Time";"A";"B"\n'
+               b'2000-01-01T00:00:00;1.100000023841858;1\n'
+               b'2000-01-01T00:00:05;2.200000047683716;2\n'
+               b'2000-01-01T00:00:10.100000;3.299999952316284;3\n'
+               b'2000-01-01T00:00:15;4.400000095367432;4\n')
+        self.assertEqual(ref, data)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -310,6 +310,35 @@ class LMDBSensorStorage(Sensors):
             data.append(tmp)
         return {'series': series, 'data': data, 'labels': [""]}
 
+    def get_csv(self, sensor_name: str, buffer_function: Callable = None,
+                include_header: bool = False, **timespan_kwargs):
+
+        if buffer_function is None:
+            buffer = BytesIO()
+            self.get_csv(sensor_name, buffer.write, include_header=include_header, **timespan_kwargs)
+            buffer.seek(0)
+            return buffer.read()
+        else:
+            if isinstance(self[sensor_name]._value_packer, StructPacker):
+                if include_header:
+                    num_fields = self[sensor_name]._value_packer._num_fields
+                    field_names = self[sensor_name].metadata.get('field_names', ())
+                    if len(field_names) != num_fields:
+                        field_names = [f'"Field {i}"' for i in range(num_fields)]
+                    else:
+                        field_names = [f'"{i}"' for i in field_names]
+
+                    buffer_function(f'"Time";{";".join(field_names)}\n'.encode())
+
+                for d, v in self[sensor_name].items(**timespan_kwargs):
+                    buffer_function(f'{d.isoformat()};{";".join([f"{field}" for field in v])}\n'.encode())
+            else:
+                if include_header:
+                    buffer_function(f'"Time";"{sensor_name}"\n'.encode())
+
+                for d, v in self[sensor_name].items(**timespan_kwargs):
+                    buffer_function(f'{d.isoformat()};{v}\n'.encode())
+
     def get_json(self, sensor_names: Sequence[str],
                  buffer_function: Callable = None,
                  **timespan_kwargs) -> Union[str, None]:

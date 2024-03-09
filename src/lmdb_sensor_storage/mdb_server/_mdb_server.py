@@ -323,8 +323,7 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         elif self.path.startswith('/data'):
             # get data (timestamps and values) for a specific time-range
-            # TODO: Have support for incremental loading in get_samples, possibly with a generator
-            kwargs = self.get_timespan_dict_from_session()
+            timestamp_kwargs = self.get_timespan_dict_from_session()
             sensor_name = self.ensure_single_sensor_name()
             if not isinstance(sensor_name, str):
                 # plain return here, as ensure_single_sensor_name already sent error message
@@ -336,25 +335,11 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_chunked_header()
             self.end_headers()
 
-            if type(self.server.sensor_storage[sensor_name]._value_packer) is StructPacker:
-                if self.server.sessions[self.sid]['query_dict'].get('include_header', False):
-                    num_fields = self.server.sensor_storage[sensor_name]._value_packer._num_fields
-                    field_names = self.server.sensor_storage[sensor_name].metadata.get('field_names', ())
-                    if len(field_names) != num_fields:
-                        field_names = [f'"{i}"' for i in range(num_fields)]
-                    else:
-                        field_names = [f'"{i}"' for i in field_names]
-
-                    self.write_chunked(f'"Time";{";".join(field_names)}\n'.encode())
-
-                for d, v in self.server.sensor_storage[sensor_name].items(**kwargs):
-                    self.write_chunked(f'{d.isoformat()};{";".join([f"{field}" for field in v])}\n'.encode())
-            else:
-                if self.server.sessions[self.sid]['query_dict'].get('include_header', False):
-                    self.write_chunked(f"Time;{sensor_name}\n".encode())
-
-                for d, v in self.server.sensor_storage[sensor_name].items(**kwargs):
-                    self.write_chunked(f'{d.isoformat()};{v}\n'.encode())
+            include_header = self.server.sessions[self.sid]['query_dict'].get('include_header', False)
+            self.server.sensor_storage.get_csv(sensor_name,
+                                               self.write_chunked,
+                                               include_header=include_header,
+                                               **timestamp_kwargs)
 
             self.end_write_chunked()
 
