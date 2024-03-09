@@ -302,6 +302,25 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_header("Content-length", "0")
             self.end_headers()
 
+        elif self.path.startswith('/json'):
+            timespan_kwargs = self.get_timespan_dict_from_session()
+            sensor_names = self.get_sensor_names_from_session()
+            if not sensor_names:
+                logger.info('Request "%s" does not have a single sensor_name')
+                msg = f'Request "{self.path}" does not have a single sensor_name.'
+                self.send_error(422, message=msg)
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header('Set-Cookie', self.cookie)
+            self.send_chunked_header()
+            self.end_headers()
+
+            self.server.sensor_storage.get_json(sensor_names, self.write_chunked, **timespan_kwargs)
+
+            self.end_write_chunked()
+
         elif self.path.startswith('/data'):
             # get data (timestamps and values) for a specific time-range
             # TODO: Have support for incremental loading in get_samples, possibly with a generator

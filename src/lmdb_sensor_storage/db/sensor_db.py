@@ -1,4 +1,5 @@
 from datetime import datetime
+from io import BytesIO
 import struct
 import os
 from lmdb_sensor_storage.db.timestamp_db import TimestampBytesDB, TimestampStringDB, TimestampYAMLDB
@@ -7,7 +8,7 @@ from lmdb_sensor_storage.db._manager import manager
 from lmdb_sensor_storage._parser import as_datetime
 from lmdb_sensor_storage.db.packer import BytesPacker, StringPacker, JSONPacker, FloatPacker, \
     StructPacker
-from typing import Mapping, List, Sequence, Union, Any, Dict
+from typing import Mapping, List, Sequence, Union, Any, Dict, Callable
 from typing_extensions import Literal
 import logging
 
@@ -308,6 +309,33 @@ class LMDBSensorStorage(Sensors):
             series.append(sensor.sensor_name)
             data.append(tmp)
         return {'series': series, 'data': data, 'labels': [""]}
+
+    def get_json(self, sensor_names: Sequence[str],
+                 buffer_function: Callable = None,
+                 **timespan_kwargs) -> Union[str, None]:
+
+        if not buffer_function:
+            buffer = BytesIO()
+            self.get_json(sensor_names, buffer.write, **timespan_kwargs)
+            buffer.seek(0)
+            return buffer.read()
+        else:
+            keys = []
+            for sensor_name in sensor_names:
+                for key in self[sensor_name].keys(**timespan_kwargs):
+                    if key not in keys:
+                        keys.append(key)
+            keys = sorted(keys)
+    
+            buffer_function('{"Time":['.encode())
+            buffer_function(','.join([f'"{key.isoformat()}"' for key in keys]).encode())
+            buffer_function(']'.encode())
+            for sensor_name in sensor_names:
+                buffer_function(f',"{sensor_name}":['.encode())
+                values = self[sensor_name].values(at_timestamps=iter(keys), **timespan_kwargs)
+                buffer_function(','.join(map(str, values)).encode())
+                buffer_function(']'.encode())
+            buffer_function('}'.encode())
 
     def close(self):
         manager.close(self._mdb_filename)

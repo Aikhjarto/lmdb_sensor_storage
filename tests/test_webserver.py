@@ -50,6 +50,18 @@ class UnitTests(unittest.TestCase):
             s.write_value(date=self.reference_date - datetime.timedelta(seconds=i),
                           value=[math.sqrt(i), math.log10(i+1), i, math.log2(i+1)])
 
+        s = Sensor(mdb_filename=self.mdb_filename, sensor_name='s1', data_format='f')
+        s[self.reference_date] = 1
+        s[self.reference_date + datetime.timedelta(seconds=5)] = 2
+        s[self.reference_date + datetime.timedelta(seconds=10.1)] = 3
+        s[self.reference_date + datetime.timedelta(seconds=15)] = 4
+
+        s = Sensor(mdb_filename=self.mdb_filename, sensor_name='s2', data_format='f')
+        s[self.reference_date] = 10
+        s[self.reference_date + datetime.timedelta(seconds=5)] = 20
+        s[self.reference_date + datetime.timedelta(seconds=6.5)] = 30
+        s[self.reference_date + datetime.timedelta(seconds=15)] = 40
+
     def tearDown(self) -> None:
         self.server.shutdown()
         self.server.server_close()
@@ -63,7 +75,7 @@ class UnitTests(unittest.TestCase):
 
         data = req.json()
         self.assertEqual(self.mdb_filename, data['filename'])
-        self.assertEqual(3, len(data['sensors']))
+        self.assertEqual(5, len(data['sensors']))
         self.assertEqual(150, data['sensors']['sensor1']['entries'])
         self.assertEqual(100, data['sensors']['sensor2']['entries'])
         self.assertEqual('V', data['sensors']['sensor1']['meta']['unit'])
@@ -201,6 +213,38 @@ class UnitTests(unittest.TestCase):
 
         req = requests.request('GET', f'{self.base_url}/time?&sensor_name=sensor3', timeout=1)
         self.assertEqual(422, req.status_code)
+
+    def test_get_json_no_sensor_name(self):
+        req = requests.request('GET', f'{self.base_url}/json', timeout=1)
+        self.assertEqual(422, req.status_code)
+
+    def test_get_json_single_sensor(self):
+        req = requests.request('GET', f'{self.base_url}/json', timeout=1,
+                               params={'sensor_name': 's1'})
+        j = req.json()
+        self.assertEqual(4, len(j['Time']))
+        self.assertEqual(4, len(j['s1']))
+
+    def test_get_json_two_sensor_with_unequal_timestamps(self):
+        req = requests.request('GET', f'{self.base_url}/json', timeout=1,
+                               params={'sensor_name': ['s1', 's2']})
+        j = req.json()
+        self.assertEqual(5, len(j['Time']))
+        self.assertEqual(5, len(j['s1']))
+        self.assertEqual(5, len(j['s2']))
+
+    def test_get_json_two_sensor_with_unequal_timestamps_with_since_and_until(self):
+        req = requests.request('GET', f'{self.base_url}/json', timeout=1000,
+                               params={'sensor_name': ['s1', 's2'],
+                                       'since': self.reference_date + datetime.timedelta(seconds=2),
+                                       'until': self.reference_date + datetime.timedelta(seconds=11)})
+        j = req.json()
+        ref = {'Time': [(self.reference_date + datetime.timedelta(seconds=5)).isoformat(),
+                        (self.reference_date + datetime.timedelta(seconds=6.5)).isoformat(),
+                        (self.reference_date + datetime.timedelta(seconds=10.1)).isoformat()],
+               's1': [2.0, 2.0, 3.0],
+               's2': [20.0, 30.0, 30.0]}
+        self.assertEqual(ref, j)
 
 
 if __name__ == '__main__':
