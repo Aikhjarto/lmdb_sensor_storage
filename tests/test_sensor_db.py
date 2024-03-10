@@ -393,7 +393,7 @@ class TestcaseTimestampBytesDB_get_at_timestamps(EmptyDatabaseMixin, unittest.Te
                    ]
         self.assertEqual(dataref, data)
 
-    def test_get_at_timestamps_until_with_endpoint_afterlast_timestamp(self):
+    def test_get_at_timestamps_until_with_endpoint_after_last_timestamp(self):
         # at_timestamps and at_timestamps_only limited by until and endpoint
         data = self.db.items(until=self.reference_date + timedelta(seconds=15), endpoint=True,
                              at_timestamps=iter([self.reference_date + timedelta(seconds=i) for i in range(11)]),)
