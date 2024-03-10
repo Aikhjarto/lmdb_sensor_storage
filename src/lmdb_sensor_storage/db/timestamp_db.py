@@ -149,10 +149,39 @@ class TimestampBytesDB(LMDBDict):
         if not since <= until:
             raise RuntimeError(f'{since} is not before {until}')
 
-        yield_time_at_measurement_points = not at_timestamps or (at_timestamps and not at_timestamps_only)
+        if at_timestamps is None:
+            # get samples between since and until
+            count = 0
+            if manager.db_exists(self._mdb_filename, self._db_name):
+                with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
+                    c = txn.cursor()
+                    if c.first() and c.set_range(self._key_packer.pack(since)):
+                        key = c.key()
+                        key_unpacked = self._key_packer.unpack(key)
 
-        if at_timestamps is not None:
-            # advance at_timestamps iterator to first value after `since
+                        while key_unpacked < until or (endpoint and key_unpacked == until):
+                            # loop until no more key before 'until' exists or deletion fails
+                            if what == 'keys':
+                                yield key_unpacked
+                            elif what == 'values':
+                                value_unpacked = self._value_packer.unpack(c.value())
+                                yield value_unpacked
+                            elif what == 'items':
+                                value_unpacked = self._value_packer.unpack(c.value())
+                                yield key_unpacked, value_unpacked
+                            else:
+                                raise NotImplementedError
+                            count += 1
+
+                            if c.next() and (limit is None or count <= limit):
+                                key = c.key()
+                                key_unpacked = self._key_packer.unpack(key)
+                            else:
+                                break
+                    else:
+                        return
+        else:
+            # advance at_timestamps iterator to first value after `since`
             try:
                 next_requested_timestamp = as_datetime(at_timestamps.__next__())
                 while (not at_timestamps_only and next_requested_timestamp <= since) or \
@@ -161,75 +190,31 @@ class TimestampBytesDB(LMDBDict):
             except StopIteration:
                 return
 
-        count = 0
-        if manager.db_exists(self._mdb_filename, self._db_name):
-            with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
-                c = txn.cursor()
-                if c.first() and c.set_range(self._key_packer.pack(since)):
-                    key = c.key()
-                    key_unpacked = self._key_packer.unpack(key)
+            count = 0
+            iteration_stopped = False
+            if manager.db_exists(self._mdb_filename, self._db_name):
+                with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
+                    c = txn.cursor()
+                    if c.first() and c.set_range(self._key_packer.pack(since)):
+                        key = c.key()
+                        key_unpacked = self._key_packer.unpack(key)
+                        old_key_unpacked = key_unpacked
 
-                    if at_timestamps is not None and key_unpacked > next_requested_timestamp:
-                        # when the c points to a sample later than first requests timestamp, get a new data-cursor
-                        # and move it back one step
-                        c2 = txn.cursor()
-                        assert c2.set_key(c.key())
-                        assert c2.prev()
-                        key_unpacked2 = self._key_packer.unpack(c2.key())
-                        value_unpacked2 = self._value_packer.unpack(c2.value())
-                        while ((not at_timestamps_only and next_requested_timestamp <= key_unpacked2) or
-                               (at_timestamps_only and next_requested_timestamp < key_unpacked)):
-                            if what == 'keys':
-                                yield next_requested_timestamp
-                            elif what == 'values':
-                                yield value_unpacked2
-                            elif what == 'items':
-                                yield next_requested_timestamp, value_unpacked2
-                            else:
-                                raise NotImplementedError
-                            count += 1
-                            next_requested_timestamp = as_datetime(at_timestamps.__next__())
+                        if key_unpacked > next_requested_timestamp:
+                            # when the c points to a sample later than first requests timestamp, peek value from one
+                            # timestamp before
+                            c2 = txn.cursor()
+                            assert c2.set_key(c.key())
+                            assert c2.prev()
+                            value_unpacked = self._value_packer.unpack(c2.value())
 
-                    while key and (key_unpacked < until or (endpoint and key_unpacked == until)):
-                        # loop until no more key before 'until' exists or deletion fails
-                        if what == 'keys':
-                            if yield_time_at_measurement_points:
-                                yield key_unpacked
-                        elif what == 'values':
-                            value_unpacked = self._value_packer.unpack(c.value())
-                            if yield_time_at_measurement_points:
-                                yield value_unpacked
-                        elif what == 'items':
-                            value_unpacked = self._value_packer.unpack(c.value())
-                            if yield_time_at_measurement_points:
-                                yield key_unpacked, value_unpacked
-                        else:
-                            raise NotImplementedError
-                        count += 1
+                        while key_unpacked < until or (endpoint and key_unpacked <= until):
 
-                        if c.next() and (limit is None or count <= limit):
-
-                            if at_timestamps is not None:
-                                # in case, a measurement is excatly at a value from at_timestamp, it would be yiedled
-                                # twice. Thus advance at_timestamps iterator to first value after `key_unpacked`
-                                try:
-                                    while ((not at_timestamps_only and next_requested_timestamp <= key_unpacked) or
-                                           (at_timestamps_only and next_requested_timestamp < since)):
-                                        next_requested_timestamp = as_datetime(at_timestamps.__next__())
-                                except StopIteration:
-                                    if at_timestamps_only:
-                                        return
-                                    else:
-                                        at_timestamps = None
-
-                            key = c.key()
-                            key_unpacked = self._key_packer.unpack(key)
-
-                            if at_timestamps is not None:
-
-                                while (next_requested_timestamp < key_unpacked
-                                       and (next_requested_timestamp < until or
-                                            (endpoint and next_requested_timestamp == until))):
+                            # process keys from `at_timestamps` until key_unpacked
+                            while not iteration_stopped and next_requested_timestamp < key_unpacked:
+                                if not ((not at_timestamps_only) and next_requested_timestamp == old_key_unpacked):
+                                    # send next_requested_timestamp if same value was not already send as part of
+                                    # DB content
                                     if what == 'keys':
                                         yield next_requested_timestamp
                                     elif what == 'values':
@@ -239,19 +224,68 @@ class TimestampBytesDB(LMDBDict):
                                     else:
                                         raise NotImplementedError
                                     count += 1
-                                    try:
-                                        next_requested_timestamp = as_datetime(at_timestamps.__next__())
-                                    except StopIteration:
-                                        if at_timestamps_only:
-                                            return
-                                        else:
-                                            at_timestamps = None
-                                            break
+                                    if limit is not None and count >= limit:
+                                        return
 
-                        else:
-                            break
-                else:
-                    return
+                                try:
+                                    next_requested_timestamp = as_datetime(at_timestamps.__next__())
+                                except StopIteration:
+                                    if at_timestamps_only:
+                                        return
+                                    else:
+                                        iteration_stopped = True
+                                        break
+
+                            # yield current key and update value_unpacked
+                            if what == 'keys':
+                                if not at_timestamps_only:
+                                    yield key_unpacked
+                            elif what == 'values':
+                                value_unpacked = self._value_packer.unpack(c.value())
+                                if not at_timestamps_only:
+                                    yield value_unpacked
+                            elif what == 'items':
+                                value_unpacked = self._value_packer.unpack(c.value())
+                                if not at_timestamps_only:
+                                    yield key_unpacked, value_unpacked
+                            else:
+                                raise NotImplementedError
+                            if not at_timestamps_only:
+                                count += 1
+                                if limit is not None and count >= limit:
+                                    return
+
+                                old_key_unpacked = key_unpacked
+
+                            if c.next():
+                                key = c.key()
+                                key_unpacked = self._key_packer.unpack(key)
+                            else:
+                                break
+                        # send remaining at_timestamp values
+                        while (next_requested_timestamp < until or
+                                (endpoint and next_requested_timestamp <= until)):
+                            if next_requested_timestamp > old_key_unpacked:
+                                # send next_requested_timestamp if same value was not already send as part of
+                                # DB content
+                                if what == 'keys':
+                                    yield next_requested_timestamp
+                                elif what == 'values':
+                                    yield value_unpacked
+                                elif what == 'items':
+                                    yield next_requested_timestamp, value_unpacked
+                                else:
+                                    raise NotImplementedError
+                                count += 1
+                                if limit is not None and count >= limit:
+                                    return
+                            try:
+                                next_requested_timestamp = as_datetime(at_timestamps.__next__())
+                            except StopIteration:
+                                break
+
+                    else:
+                        return
 
     def _get_timespan_decimated(self, decimate_to_s: Union[Literal['auto'], SupportsFloat],
                                 since: datetime = None, until: datetime = None, limit: int = None,

@@ -200,6 +200,23 @@ class TestcaseTimestampBytesDB_get_at_timestamps(EmptyDatabaseMixin, unittest.Te
                    ]
         self.assertEqual(dataref, data)
 
+    def test_get_at_timestamps_last_key_matches(self):
+        data = self.db.items(at_timestamps=iter([self.reference_date+timedelta(seconds=i) for i in (0, 5, 10.1, 15)]))
+        dataref = [(self.reference_date + timedelta(seconds=0), b'1'),  # included as not limited with since
+                   (self.reference_date + timedelta(seconds=5), b'2'),
+                   (self.reference_date + timedelta(seconds=10.1), b'3'),
+                   (self.reference_date + timedelta(seconds=15), b'4')]
+        self.assertEqual(dataref, data)
+
+    def test_get_at_timestamps_only_last_key_matches(self):
+        data = self.db.items(at_timestamps=iter([self.reference_date+timedelta(seconds=i) for i in (0, 5, 10.1, 15)]),
+                             at_timestamps_only=True)
+        dataref = [(self.reference_date + timedelta(seconds=0), b'1'),  # included as not limited with since
+                   (self.reference_date + timedelta(seconds=5), b'2'),
+                   (self.reference_date + timedelta(seconds=10.1), b'3'),
+                   (self.reference_date + timedelta(seconds=15), b'4')]
+        self.assertEqual(dataref, data)
+
     def test_get_at_timestamps_later(self):
         # same as test_get_at_timestamps, but at_timestamps starts later
         data = self.db.items(at_timestamps=iter([self.reference_date+timedelta(seconds=i) for i in range(3, 15)]))
