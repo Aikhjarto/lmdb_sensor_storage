@@ -135,7 +135,9 @@ class TimestampBytesDB(LMDBDict):
         if since is None:
             since = self.get_first_timestamp()
         elif since > self.get_last_timestamp():
-            return
+            if not at_timestamps:
+                # print("since > self.get_last_timestamp()")
+                return
 
         original_until = until
         if until is None:
@@ -148,7 +150,8 @@ class TimestampBytesDB(LMDBDict):
             return
 
         if not since <= until:
-            raise RuntimeError(f'{since} is not before {until}')
+            if not at_timestamps:
+                raise RuntimeError(f'{since} is not before {until}')
 
         if at_timestamps is None:
             # get samples between since and until
@@ -185,10 +188,10 @@ class TimestampBytesDB(LMDBDict):
             # advance at_timestamps iterator to first value after `since`
             try:
                 next_requested_timestamp = as_datetime(at_timestamps.__next__())
-                while (not at_timestamps_only and next_requested_timestamp <= since) or \
-                      (at_timestamps_only and next_requested_timestamp < since):
+                while next_requested_timestamp < since:
                     next_requested_timestamp = as_datetime(at_timestamps.__next__())
             except StopIteration:
+                # print('next_requested_timestamp could not move past since')
                 return
 
             count = 0
@@ -196,7 +199,16 @@ class TimestampBytesDB(LMDBDict):
             if manager.db_exists(self._mdb_filename, self._db_name):
                 with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
                     c = txn.cursor()
-                    if c.first() and c.set_range(self._key_packer.pack(since)):
+
+                    # move to first value after `since`
+                    if not c.set_range(self._key_packer.pack(since)):
+                        # there was no value after `since`, thus move to last possible value bevor `since`
+                        c.last()
+                        key = c.key()
+                        key_unpacked = self._key_packer.unpack(key)
+                        old_key_unpacked = key_unpacked
+                        value_unpacked = self._value_packer.unpack(c.value())
+                    else:
                         key = c.key()
                         key_unpacked = self._key_packer.unpack(key)
                         old_key_unpacked = key_unpacked
@@ -256,7 +268,7 @@ class TimestampBytesDB(LMDBDict):
                                 if limit is not None and count >= limit:
                                     return
                                 old_key_unpacked = key_unpacked
-                            # print('Key:', key_unpacked, 'Value:', value_unpacked)
+                            # print('Key:', key_unpacked, 'Value:', value_unpacked, at_timestamps_only)
 
                             if c.next():
                                 key = c.key()
@@ -266,31 +278,29 @@ class TimestampBytesDB(LMDBDict):
                                 # print('Cnext failed')
                                 break
 
-                        # send remaining at_timestamp values
-                        while (original_until is None or
-                               next_requested_timestamp < original_until or
-                               (endpoint and next_requested_timestamp <= original_until)):
-                            if next_requested_timestamp > old_key_unpacked:
-                                # send next_requested_timestamp if same value was not already send as part of
-                                # DB content
-                                if what == 'keys':
-                                    yield next_requested_timestamp
-                                elif what == 'values':
-                                    yield value_unpacked
-                                elif what == 'items':
-                                    yield next_requested_timestamp, value_unpacked
-                                else:
-                                    raise NotImplementedError
-                                count += 1
-                                if limit is not None and count >= limit:
-                                    return
-                            try:
-                                next_requested_timestamp = as_datetime(at_timestamps.__next__())
-                            except StopIteration:
-                                break
-
-                    else:
-                        return
+                    # send remaining at_timestamp values
+                    while (original_until is None or
+                           next_requested_timestamp < original_until or
+                           (endpoint and next_requested_timestamp <= original_until)):
+                        # print('next requested_timestamp:', next_requested_timestamp, old_key_unpacked)
+                        if next_requested_timestamp > old_key_unpacked or at_timestamps_only:
+                            # send next_requested_timestamp if same value was not already send as part of
+                            # DB content
+                            if what == 'keys':
+                                yield next_requested_timestamp
+                            elif what == 'values':
+                                yield value_unpacked
+                            elif what == 'items':
+                                yield next_requested_timestamp, value_unpacked
+                            else:
+                                raise NotImplementedError
+                            count += 1
+                            if limit is not None and count >= limit:
+                                return
+                        try:
+                            next_requested_timestamp = as_datetime(at_timestamps.__next__())
+                        except StopIteration:
+                            break
 
     def _get_timespan_decimated(self, decimate_to_s: Union[Literal['auto'], SupportsFloat],
                                 since: datetime = None, until: datetime = None, limit: int = None,

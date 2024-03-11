@@ -383,6 +383,32 @@ class TestcaseTimestampBytesDB_get_at_timestamps(EmptyDatabaseMixin, unittest.Te
                    ]
         self.assertEqual(dataref, data)
 
+    def test_get_at_timestamps_since_and_at_timestamps_is_at_last_timestamp(self):
+        data = self.db.items(since=self.reference_date + timedelta(seconds=15),
+                             at_timestamps=iter([self.reference_date + timedelta(seconds=15)]))
+        data_ref = [(self.reference_date + timedelta(seconds=15), b'4')]
+        self.assertEqual(data_ref, data)
+
+    def test_get_at_timestamps_only_since_and_at_timestamps_is_at_last_timestamp(self):
+        data = self.db.items(since=self.reference_date + timedelta(seconds=15),
+                             at_timestamps=iter([self.reference_date + timedelta(seconds=15)]),
+                             at_timestamps_only=True)
+        data_ref = [(self.reference_date + timedelta(seconds=15), b'4')]
+        self.assertEqual(data_ref, data)
+
+    def test_get_at_timestamps_since_and_at_timestamps_is_after_last_timestamp(self):
+        data = self.db.items(since=self.reference_date + timedelta(seconds=16),
+                             at_timestamps=iter([self.reference_date + timedelta(seconds=16)]))
+        data_ref = [(self.reference_date + timedelta(seconds=16), b'4')]
+        self.assertEqual(data_ref, data)
+
+    def test_get_at_timestamps_only_since_and_at_timestamps_is_after_last_timestamp(self):
+        data = self.db.items(since=self.reference_date + timedelta(seconds=16),
+                             at_timestamps=iter([self.reference_date + timedelta(seconds=16)]),
+                             at_timestamps_only=True)
+        data_ref = [(self.reference_date + timedelta(seconds=16), b'4')]
+        self.assertEqual(data_ref, data)
+
     def test_get_at_timestamps_until_before_last_timestamp(self):
         # at_timestamp is limited by until
         data = self.db.items(until=self.reference_date + timedelta(seconds=11),
