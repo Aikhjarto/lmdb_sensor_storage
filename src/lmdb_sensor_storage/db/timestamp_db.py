@@ -137,6 +137,7 @@ class TimestampBytesDB(LMDBDict):
         elif since > self.get_last_timestamp():
             return
 
+        original_until = until
         if until is None:
             until = self.get_last_timestamp()
             endpoint = True
@@ -254,17 +255,21 @@ class TimestampBytesDB(LMDBDict):
                                 count += 1
                                 if limit is not None and count >= limit:
                                     return
-
                                 old_key_unpacked = key_unpacked
+                            # print('Key:', key_unpacked, 'Value:', value_unpacked)
 
                             if c.next():
                                 key = c.key()
                                 key_unpacked = self._key_packer.unpack(key)
+                                # print('Key unpacked:', key_unpacked)
                             else:
+                                # print('Cnext failed')
                                 break
+
                         # send remaining at_timestamp values
-                        while (next_requested_timestamp < until or
-                                (endpoint and next_requested_timestamp <= until)):
+                        while (original_until is None or
+                               next_requested_timestamp < original_until or
+                               (endpoint and next_requested_timestamp <= original_until)):
                             if next_requested_timestamp > old_key_unpacked:
                                 # send next_requested_timestamp if same value was not already send as part of
                                 # DB content

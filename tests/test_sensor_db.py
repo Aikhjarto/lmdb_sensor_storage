@@ -177,6 +177,32 @@ class TestcaseTimestampBytesDB_get_at_timestamps(EmptyDatabaseMixin, unittest.Te
                    ]
         self.assertEqual(dataref, data)
 
+    def test_get_at_timestamp_exceeds_keys(self):
+        data = self.db.items(at_timestamps=iter([self.reference_date + timedelta(seconds=i) for i in range(20)]))
+        dataref = [(self.reference_date + timedelta(seconds=0), b'1'),
+                   (self.reference_date + timedelta(seconds=1), b'1'),
+                   (self.reference_date + timedelta(seconds=2), b'1'),
+                   (self.reference_date + timedelta(seconds=3), b'1'),
+                   (self.reference_date + timedelta(seconds=4), b'1'),
+                   (self.reference_date + timedelta(seconds=5), b'2'),
+                   (self.reference_date + timedelta(seconds=6), b'2'),
+                   (self.reference_date + timedelta(seconds=7), b'2'),
+                   (self.reference_date + timedelta(seconds=8), b'2'),
+                   (self.reference_date + timedelta(seconds=9), b'2'),
+                   (self.reference_date + timedelta(seconds=10), b'2'),
+                   (self.reference_date + timedelta(seconds=10.1), b'3'),
+                   (self.reference_date + timedelta(seconds=11), b'3'),
+                   (self.reference_date + timedelta(seconds=12), b'3'),
+                   (self.reference_date + timedelta(seconds=13), b'3'),
+                   (self.reference_date + timedelta(seconds=14), b'3'),
+                   (self.reference_date + timedelta(seconds=15), b'4'),
+                   (self.reference_date + timedelta(seconds=16), b'4'),
+                   (self.reference_date + timedelta(seconds=17), b'4'),
+                   (self.reference_date + timedelta(seconds=18), b'4'),
+                   (self.reference_date + timedelta(seconds=19), b'4'),
+                   ]
+        self.assertEqual(dataref, data)
+
     def test_get_at_timestamps_only(self):
 
         # at_timestamps and at_timestamps_only
@@ -197,6 +223,32 @@ class TestcaseTimestampBytesDB_get_at_timestamps(EmptyDatabaseMixin, unittest.Te
                    (self.reference_date + timedelta(seconds=12), b'3'),
                    (self.reference_date + timedelta(seconds=13), b'3'),
                    (self.reference_date + timedelta(seconds=14), b'3')
+                   ]
+        self.assertEqual(dataref, data)
+
+    def test_get_at_timestamp_only_exceeds_keys(self):
+        data = self.db.items(at_timestamps=iter([self.reference_date + timedelta(seconds=i) for i in range(20)]),
+                             at_timestamps_only=True)
+        dataref = [(self.reference_date + timedelta(seconds=0), b'1'),
+                   (self.reference_date + timedelta(seconds=1), b'1'),
+                   (self.reference_date + timedelta(seconds=2), b'1'),
+                   (self.reference_date + timedelta(seconds=3), b'1'),
+                   (self.reference_date + timedelta(seconds=4), b'1'),
+                   (self.reference_date + timedelta(seconds=5), b'2'),
+                   (self.reference_date + timedelta(seconds=6), b'2'),
+                   (self.reference_date + timedelta(seconds=7), b'2'),
+                   (self.reference_date + timedelta(seconds=8), b'2'),
+                   (self.reference_date + timedelta(seconds=9), b'2'),
+                   (self.reference_date + timedelta(seconds=10), b'2'),
+                   (self.reference_date + timedelta(seconds=11), b'3'),
+                   (self.reference_date + timedelta(seconds=12), b'3'),
+                   (self.reference_date + timedelta(seconds=13), b'3'),
+                   (self.reference_date + timedelta(seconds=14), b'3'),
+                   (self.reference_date + timedelta(seconds=15), b'4'),
+                   (self.reference_date + timedelta(seconds=16), b'4'),
+                   (self.reference_date + timedelta(seconds=17), b'4'),
+                   (self.reference_date + timedelta(seconds=18), b'4'),
+                   (self.reference_date + timedelta(seconds=19), b'4'),
                    ]
         self.assertEqual(dataref, data)
 
