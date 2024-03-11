@@ -310,34 +310,52 @@ class LMDBSensorStorage(Sensors):
             data.append(tmp)
         return {'series': series, 'data': data, 'labels': [""]}
 
-    def get_csv(self, sensor_name: str, buffer_function: Callable = None,
+    def _get_common_keys(self, sensor_names: List[str], **timespan_kwargs):
+        keys = []
+        for sensor_name in sensor_names:
+            for key in self[sensor_name].keys(**timespan_kwargs):
+                if key not in keys:
+                    keys.append(key)
+        return sorted(keys)
+
+    def get_csv(self, sensor_names: Sequence[str], buffer_function: Callable = None,
                 include_header: bool = False, **timespan_kwargs):
 
         if buffer_function is None:
             buffer = BytesIO()
-            self.get_csv(sensor_name, buffer.write, include_header=include_header, **timespan_kwargs)
+            self.get_csv(sensor_names, buffer.write, include_header=include_header, **timespan_kwargs)
             buffer.seek(0)
             return buffer.read()
         else:
-            if isinstance(self[sensor_name]._value_packer, StructPacker):
-                if include_header:
-                    num_fields = self[sensor_name]._value_packer._num_fields
-                    field_names = self[sensor_name].metadata.get('field_names', ())
-                    if len(field_names) != num_fields:
-                        field_names = [f'"Field {i}"' for i in range(num_fields)]
+            sensors = [self[s] for s in sensor_names]
+            if include_header:
+                tmp = ['"Time"',]
+                for s in sensors:
+                    if isinstance(s._value_packer, StructPacker):
+                        num_fields = s._value_packer._num_fields
+                        field_names = s.metadata.get('field_names', ())
+                        if len(field_names) != num_fields:
+                            tmp.extend([f'"{s.sensor_name} Field {i}"' for i in range(num_fields)])
+                        else:
+                            tmp.extend([f'"{s.sensor_name} {i}"' for i in field_names])
                     else:
-                        field_names = [f'"{i}"' for i in field_names]
+                        tmp.append(f'"{s.sensor_name}"')
+                header_line = f"{';'.join(tmp)}\n".encode()
+                buffer_function(header_line)
 
-                    buffer_function(f'"Time";{";".join(field_names)}\n'.encode())
-
-                for d, v in self[sensor_name].items(**timespan_kwargs):
-                    buffer_function(f'{d.isoformat()};{";".join([f"{field}" for field in v])}\n'.encode())
-            else:
-                if include_header:
-                    buffer_function(f'"Time";"{sensor_name}"\n'.encode())
-
-                for d, v in self[sensor_name].items(**timespan_kwargs):
-                    buffer_function(f'{d.isoformat()};{v}\n'.encode())
+            keys = self._get_common_keys(sensor_names, **timespan_kwargs)
+            values = [s.values(at_timestamps=iter(keys),
+                               at_timestamps_only=True,
+                               **timespan_kwargs) for s in sensors]
+            for idx, key in enumerate(keys):
+                tmp = [key.isoformat(),]
+                for k, i in enumerate(values):
+                    if isinstance(sensors[k]._value_packer, StructPacker):
+                        tmp.append(';'.join([str(j) for j in i[idx]]))
+                    else:
+                        tmp.append(str(i[idx]))
+                line = f"{';'.join(tmp)}\n"
+                buffer_function(line.encode())
 
     def get_json(self, sensor_names: Sequence[str],
                  buffer_function: Callable = None,
@@ -349,12 +367,7 @@ class LMDBSensorStorage(Sensors):
             buffer.seek(0)
             return buffer.read()
         else:
-            keys = []
-            for sensor_name in sensor_names:
-                for key in self[sensor_name].keys(**timespan_kwargs):
-                    if key not in keys:
-                        keys.append(key)
-            keys = sorted(keys)
+            keys = self._get_common_keys(sensor_names, **timespan_kwargs)
     
             buffer_function('{"Time":['.encode())
             buffer_function(','.join([f'"{key.isoformat()}"' for key in keys]).encode())

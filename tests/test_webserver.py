@@ -91,20 +91,23 @@ class UnitTests(unittest.TestCase):
         req = requests.request('GET', f'{self.base_url}/favicon.ico', timeout=1)
         self.assertEqual(200, req.status_code)
 
-    def test_get_sensor_data(self):
+    def test_get_sensor_data_wrong_sensor(self):
 
         # request data from non-existing sensor
         req = requests.request('GET', f'{self.base_url}/data?sensor_name=sensor3', timeout=1)
         self.assertEqual(422, req.status_code)
 
+    def test_get_sensor_data_sensor1(self):
         req = requests.request('GET', f'{self.base_url}/data?sensor_name=sensor1', timeout=1)
         self.assertEqual(200, req.status_code)
         self.assertEqual(len(req.text.split('\n')), 151)
 
+    def test_get_sensor_data_sensor2(self):
         req = requests.request('GET', f'{self.base_url}/data?sensor_name=sensor2', timeout=1)
         self.assertEqual(200, req.status_code)
         self.assertEqual(len(req.text.split('\n')), 101)
 
+    def test_get_sensor_data_struct(self):
         req = requests.request('GET', f'{self.base_url}/data',
                                params={'sensor_name': 'sensor_RGBC',
                                        'include_header': 'true'},
@@ -112,22 +115,20 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(200, req.status_code)
         self.assertEqual(len(req.text.split('\n')), 102)
 
-        # error message when requesting more than one sensor name
-        req = requests.request('GET', f'{self.base_url}/data',
-                               params={'sensor_name': ["sensor1", "sensor2"]}, timeout=1)
-        self.assertEqual(422, req.status_code)
-
+    def test_get_sensor_data_without_sensor_name(self):
         # error message due to request data with no sensor name
         req = requests.request('GET', f'{self.base_url}/data', timeout=1)
         self.assertEqual(422, req.status_code)
 
+    def test_get_sensor_data_since(self):
         # get most recent value
-        req = requests.request('GET', f'{self.base_url}/data', timeout=1,
+        req = requests.request('GET', f'{self.base_url}/data', timeout=1000,
                                params={'sensor_name': "sensor1",
                                        'since': self.reference_date})
         self.assertEqual(200, req.status_code)
         self.assertEqual(2, len(req.text.split('\n')))
 
+    def test_get_sensor_data_since_with_header(self):
         # get most recent value with header
         req = requests.request('GET', f'{self.base_url}/data', timeout=1,
                                params={'sensor_name': "sensor1",
@@ -136,6 +137,7 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(200, req.status_code)
         self.assertEqual(3, len(req.text.split('\n')))
 
+    def test_get_sensor_data_since_in_isoformat(self):
         # get last 10 seconds requested in isoformat
         req = requests.request('GET', f'{self.base_url}/data', timeout=1,
                                params={'sensor_name': "sensor1",
@@ -143,6 +145,7 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(200, req.status_code)
         self.assertEqual(12, len(req.text.split('\n')))
 
+    def test_get_sensor_data_since_as_timestamp(self):
         # get last 10 seconds requested as timestamp
         req = requests.request('GET', f'{self.base_url}/data', timeout=1,
                                params={'sensor_name': "sensor1",

@@ -324,9 +324,11 @@ class MDBRequestHandler(HTTPRequestHandler):
         elif self.path.startswith('/data'):
             # get data (timestamps and values) for a specific time-range
             timestamp_kwargs = self.get_timespan_dict_from_session()
-            sensor_name = self.ensure_single_sensor_name()
-            if not isinstance(sensor_name, str):
-                # plain return here, as ensure_single_sensor_name already sent error message
+            sensor_names = self.get_sensor_names_from_session()
+            if not sensor_names:
+                logger.info('Request "%s" does not have a single sensor_name')
+                msg = f'Request "{self.path}" does not have a single sensor_name.'
+                self.send_error(422, message=msg)
                 return
 
             self.send_response(200)
@@ -336,7 +338,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.end_headers()
 
             include_header = self.server.sessions[self.sid]['query_dict'].get('include_header', False)
-            self.server.sensor_storage.get_csv(sensor_name,
+            self.server.sensor_storage.get_csv(sensor_names,
                                                self.write_chunked,
                                                include_header=include_header,
                                                **timestamp_kwargs)
