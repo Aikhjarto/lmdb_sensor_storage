@@ -226,15 +226,15 @@ class UnitTests(unittest.TestCase):
                                params={'sensor_name': 's1'})
         j = req.json()
         self.assertEqual(4, len(j['Time']))
-        self.assertEqual(4, len(j['s1']))
+        self.assertEqual(4, len(j['s1']['values']))
 
     def test_get_json_two_sensor_with_unequal_timestamps(self):
         req = requests.request('GET', f'{self.base_url}/json', timeout=1,
                                params={'sensor_name': ['s1', 's2']})
         j = req.json()
         self.assertEqual(5, len(j['Time']))
-        self.assertEqual(5, len(j['s1']))
-        self.assertEqual(5, len(j['s2']))
+        self.assertEqual(5, len(j['s1']['values']))
+        self.assertEqual(5, len(j['s2']['values']))
 
     def test_get_json_two_sensor_with_unequal_timestamps_with_since_and_until(self):
         req = requests.request('GET', f'{self.base_url}/json', timeout=1000,
@@ -245,8 +245,9 @@ class UnitTests(unittest.TestCase):
         ref = {'Time': [(self.reference_date + datetime.timedelta(seconds=5)).isoformat(),
                         (self.reference_date + datetime.timedelta(seconds=6.5)).isoformat(),
                         (self.reference_date + datetime.timedelta(seconds=10.1)).isoformat()],
-               's1': [2.0, 2.0, 3.0],
-               's2': [20.0, 30.0, 30.0]}
+               's1': {'values': [2.0, 2.0, 3.0]},
+               's2': {'values': [20.0, 30.0, 30.0]}
+               }
         self.assertEqual(ref, j)
 
 

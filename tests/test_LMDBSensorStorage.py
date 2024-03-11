@@ -36,8 +36,12 @@ class DataMixin(EmptyDatabaseMixin):
         s.copy_to("s4")
         s = Sensor(mdb_filename=self.mdb_filename, sensor_name='s4')
         s.metadata['field_names'] = ['A', 'B']
+        s.notes.add_note(short='Sensorlevel Note', long='Very long description of sensorlevel note',
+                         timestamp=self.reference_date + timedelta(seconds=7))
 
         self.db = LMDBSensorStorage(self.mdb_filename)
+        self.db.notes.add_note(short='Toplevel Note', long='Very long description of toplevel note',
+                               timestamp=self.reference_date + timedelta(seconds=4))
 
 
 class TestcaseLMDBSensorStorage(EmptyDatabaseMixin, unittest.TestCase):
@@ -78,11 +82,8 @@ class TestcaseLMDBSensorStorageGetJSON(DataMixin, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.reference_date = as_datetime("2000-01-01")
 
     def test_get_json(self):
-
-        db = LMDBSensorStorage(self.mdb_filename)
 
         # test without limits
         json_bytes = self.db.get_json(['s1', 's2'])
@@ -92,8 +93,10 @@ class TestcaseLMDBSensorStorageGetJSON(DataMixin, unittest.TestCase):
                         '2000-01-01T00:00:06.500000',
                         '2000-01-01T00:00:10.100000',
                         '2000-01-01T00:00:15'],
-               's1': [1.0, 2.0, 2.0, 3.0, 4.0],
-               's2': [10.0, 20.0, 30.0, 30.0, 40.0]}
+               'notes': [{'2000-01-01T00:00:04': {'long': 'Very long description of toplevel note',
+                                                  'short': 'Toplevel Note'}}],
+               's1': {"values": [1.0, 2.0, 2.0, 3.0, 4.0]},
+               's2': {"values": [10.0, 20.0, 30.0, 30.0, 40.0]}}
         self.assertEqual(ref, data)
 
         # test with since and until
@@ -105,8 +108,31 @@ class TestcaseLMDBSensorStorageGetJSON(DataMixin, unittest.TestCase):
         ref = {'Time': [(self.reference_date + timedelta(seconds=5)).isoformat(),
                         (self.reference_date + timedelta(seconds=6.5)).isoformat(),
                         (self.reference_date + timedelta(seconds=10.1)).isoformat()],
-               's1': [2.0, 2.0, 3.0],
-               's2': [20.0, 30.0, 30.0]}
+               'notes': [{'2000-01-01T00:00:04': {'long': 'Very long description of toplevel note',
+                                                  'short': 'Toplevel Note'}}],
+               's1': {"values": [2.0, 2.0, 3.0]},
+               's2': {"values": [20.0, 30.0, 30.0]}}
+        self.assertEqual(ref, data)
+
+    def test_get_json_with_notes(self):
+        json_bytes = self.db.get_json(['s1', 's2', 's4'],
+                                      since=self.reference_date + timedelta(seconds=2),
+                                      until=self.reference_date + timedelta(seconds=11))
+
+        data = json.loads(json_bytes)
+        ref = {'Time': ['2000-01-01T00:00:03',
+                        '2000-01-01T00:00:04.500000',
+                        '2000-01-01T00:00:05',
+                        '2000-01-01T00:00:06.500000',
+                        '2000-01-01T00:00:10.100000'],
+               'notes': [{'2000-01-01T00:00:04': {'long': 'Very long description of toplevel note',
+                                                  'short': 'Toplevel Note'}}],
+               's1': {'values': [1.0, 1.0, 2.0, 2.0, 3.0]},
+               's2': {'values': [10.0, 10.0, 20.0, 30.0, 30.0]},
+               's4': {'metadata': {'field_names': ['A', 'B']},
+                      'notes': [{'2000-01-01T00:00:07': {'long': 'Very long description of sensorlevel note',
+                                                         'short': 'Sensorlevel Note'}}],
+                      'values': [[200, 201], [300, 301], [300, 301], [300, 301], [300, 301]]}}
         self.assertEqual(ref, data)
 
 
