@@ -1,5 +1,6 @@
+import struct
 import unittest
-from lmdb_sensor_storage.db.packer import FloatPacker, IntPacker, StringPacker, JSONPacker
+from lmdb_sensor_storage.db.packer import FloatPacker, IntPacker, StringPacker, JSONPacker, StructPacker
 
 
 class TestcasePacker(unittest.TestCase):
@@ -34,6 +35,15 @@ class TestcasePacker(unittest.TestCase):
             self.assertEqual({"a": 3, "4": 4}, p.unpack(p.pack({"a": 3, 4: 4})))
         self.assertEqual([1, 2, 3], p.unpack(p.pack('[1,2,3]')))
         self.assertEqual([1, 2, 3], p.unpack(p.pack(' [ 1, 2, 3 ] ')))
+
+    def testStruct(self):
+        p = StructPacker('HH')
+        self.assertEqual((3, 4), p.unpack(p.pack([3, 4])))
+
+    def testStruct2(self):
+        p = StructPacker('HH')
+        with self.assertRaises(struct.error):
+            p.pack([3, 4.0])
 
 
 if __name__ == "__main__":
