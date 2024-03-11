@@ -353,6 +353,8 @@ class LMDBSensorStorage(Sensors):
                 for k, i in enumerate(values):
                     if isinstance(sensors[k]._value_packer, StructPacker):
                         tmp.append(';'.join([str(j) for j in i[idx]]))
+                    elif isinstance(sensors[k]._value_packer, StringPacker):
+                        tmp.append(f'"{i[idx]}"')
                     else:
                         tmp.append(str(i[idx]))
                 line = f"{';'.join(tmp)}\n"
@@ -378,6 +380,9 @@ class LMDBSensorStorage(Sensors):
                 values = self[sensor_name].values(at_timestamps=iter(keys), **timespan_kwargs)
                 if isinstance(self[sensor_name]._value_packer, StructPacker):
                     b = ','.join([f'[{",".join([str(tmp) for tmp in value])}]' for value in values])
+                    buffer_function(b.encode())
+                elif isinstance(self[sensor_name]._value_packer, StringPacker):
+                    b = ','.join([f'"{value}"' for value in values])
                     buffer_function(b.encode())
                 else:
                     buffer_function(','.join(map(str, values)).encode())

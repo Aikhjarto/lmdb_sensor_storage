@@ -39,6 +39,12 @@ class DataMixin(EmptyDatabaseMixin):
         s.notes.add_note(short='Sensorlevel Note', long='Very long description of sensorlevel note',
                          timestamp=self.reference_date + timedelta(seconds=7))
 
+        s = Sensor(mdb_filename=self.mdb_filename, sensor_name='s5', data_format='str')
+        s[self.reference_date] = 'test with space'
+        s[self.reference_date + timedelta(seconds=3)] = 'test with , '
+        s[self.reference_date + timedelta(seconds=4.5)] = 'test'
+        s[self.reference_date + timedelta(seconds=11)] = 'test with ;'
+
         self.db = LMDBSensorStorage(self.mdb_filename)
         self.db.notes.add_note(short='Toplevel Note', long='Very long description of toplevel note',
                                timestamp=self.reference_date + timedelta(seconds=4))
@@ -134,6 +140,28 @@ class TestcaseLMDBSensorStorageGetJSON(DataMixin, unittest.TestCase):
                                                          'short': 'Sensorlevel Note'}}],
                       'values': [[200, 201], [300, 301], [300, 301], [300, 301], [300, 301]]}}
         self.assertEqual(ref, data)
+
+    def test_get_json_with_str(self):
+        json_bytes = self.db.get_json(['s1', 's5'])
+        data = json.loads(json_bytes)
+        data_ref = {'Time': ['2000-01-01T00:00:00',
+                             '2000-01-01T00:00:03',
+                             '2000-01-01T00:00:04.500000',
+                             '2000-01-01T00:00:05',
+                             '2000-01-01T00:00:10.100000',
+                             '2000-01-01T00:00:11',
+                             '2000-01-01T00:00:15'],
+                    's1': {'values': [1.0, 1.0, 1.0, 2.0, 3.0, 3.0, 4.0]},
+                    's5': {'values': ['test with space',
+                                      'test with , ',
+                                      'test',
+                                      'test',
+                                      'test',
+                                      'test with ;',
+                                      'test with ;']},
+                    'notes': [{'2000-01-01T00:00:04': {'long': 'Very long description of toplevel note',
+                                                       'short': 'Toplevel Note'}}]}
+        self.assertEqual(data_ref, data)
 
 
 class TestcaseLMDBSensorStorageGetCSV(DataMixin, unittest.TestCase):
@@ -248,6 +276,18 @@ class TestcaseLMDBSensorStorageGetCSV(DataMixin, unittest.TestCase):
                b'2000-01-01T00:00:11;3.0;30.0;400;401\n'
                b'2000-01-01T00:00:15;4.0;40.0;400;401\n')
         self.assertEqual(ref, data)
+
+    def test_get_csv_float_and_string(self):
+        data = self.db.get_csv(['s1', 's5'], include_header=True)
+        data_ref = (b'"Time";"s1";"s5"\n'
+                    b'2000-01-01T00:00:00;1.0;"test with space"\n'
+                    b'2000-01-01T00:00:03;1.0;"test with , "\n'
+                    b'2000-01-01T00:00:04.500000;1.0;"test"\n'
+                    b'2000-01-01T00:00:05;2.0;"test"\n'
+                    b'2000-01-01T00:00:10.100000;3.0;"test"\n'
+                    b'2000-01-01T00:00:11;3.0;"test with ;"\n'
+                    b'2000-01-01T00:00:15;4.0;"test with ;"\n')
+        self.assertEqual(data_ref, data)
 
 
 if __name__ == "__main__":
