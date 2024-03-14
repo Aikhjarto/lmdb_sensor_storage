@@ -23,7 +23,8 @@ dependencies = [
     "PyYAML",
     "requests",
     "regex",
-    "typing_extensions"
+    "typing_extensions",
+    "sortedcontainers",
 ]
 dynamic = ["version"]
 

@@ -21,6 +21,7 @@ setup(name='lmdb_sensor_storage',
                         "requests",
                         "regex",
                         "typing_extensions",
+                        "sortedcontainers",
                         ],
       include_package_data=True,
       package_data={'lmdb_sensor_storage': ['**/*.service', '**/*.timer'], }

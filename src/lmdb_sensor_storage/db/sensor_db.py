@@ -12,6 +12,7 @@ from lmdb_sensor_storage.db.packer import BytesPacker, StringPacker, JSONPacker,
 from typing import Mapping, List, Sequence, Union, Any, Dict, Callable
 from typing_extensions import Literal
 import logging
+from sortedcontainers import SortedSet
 
 logger = logging.getLogger('lmdb_sensor_storage.db')
 
@@ -312,12 +313,10 @@ class LMDBSensorStorage(Sensors):
         return {'series': series, 'data': data, 'labels': [""]}
 
     def _get_common_keys(self, sensor_names: List[str], **timespan_kwargs):
-        keys = []
+        keys = SortedSet()
         for sensor_name in sensor_names:
-            for key in self[sensor_name].keys(**timespan_kwargs):
-                if key not in keys:
-                    keys.append(key)
-        return sorted(keys)
+            keys.update(self[sensor_name].keys(**timespan_kwargs))
+        return list(keys)
 
     def get_csv(self, sensor_names: Sequence[str], buffer_function: Callable = None,
                 include_header: bool = False, **timespan_kwargs):
