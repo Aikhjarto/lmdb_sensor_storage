@@ -317,7 +317,10 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_chunked_header()
             self.end_headers()
 
-            self.server.sensor_storage.get_json(sensor_names, self.write_chunked, **timespan_kwargs)
+            try:
+                self.server.sensor_storage.get_json(sensor_names, self.write_chunked, **timespan_kwargs)
+            except Exception as e:
+                self.write_chunked(traceback.format_exc())
 
             self.end_write_chunked()
 
@@ -337,12 +340,14 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_chunked_header()
             self.end_headers()
 
-            include_header = self.server.sessions[self.sid]['query_dict'].get('include_header', False)
-            self.server.sensor_storage.get_csv(sensor_names,
-                                               self.write_chunked,
-                                               include_header=include_header,
-                                               **timestamp_kwargs)
-
+            try:
+                include_header = self.server.sessions[self.sid]['query_dict'].get('include_header', False)
+                self.server.sensor_storage.get_csv(sensor_names,
+                                                   self.write_chunked,
+                                                   include_header=include_header,
+                                                   **timestamp_kwargs)
+            except Exception as e:
+                self.write_chunked(traceback.format_exc())
             self.end_write_chunked()
 
         elif self.path.startswith('/nodered_chart'):
