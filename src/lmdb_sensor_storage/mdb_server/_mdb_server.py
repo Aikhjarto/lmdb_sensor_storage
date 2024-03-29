@@ -320,7 +320,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             try:
                 self.server.sensor_storage.get_json(sensor_names, self.write_chunked, **timespan_kwargs)
             except Exception as e:
-                self.write_chunked(traceback.format_exc())
+                self.write_chunked(traceback.format_exc().encode())
 
             self.end_write_chunked()
 
@@ -347,7 +347,7 @@ class MDBRequestHandler(HTTPRequestHandler):
                                                    include_header=include_header,
                                                    **timestamp_kwargs)
             except Exception as e:
-                self.write_chunked(traceback.format_exc())
+                self.write_chunked(traceback.format_exc().encode())
             self.end_write_chunked()
 
         elif self.path.startswith('/nodered_chart'):
