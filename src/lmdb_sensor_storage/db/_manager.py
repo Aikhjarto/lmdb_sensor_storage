@@ -19,8 +19,12 @@ class Manager:
     .. [1] https://lmdb.readthedocs.io/en/release/#environment-class
     """
 
+    DEFAULT_MAXDBS = 1024
+    MAX_DBS_STEP = 1024
+
     def __init__(self):
         self.handles = {}  # type: Dict[str, lmdb.Environment]
+        self._max_dbs = {}  # type: Dict[str, int]
 
     def get_environment(self, mdb_filename, **kwargs):
         """
@@ -35,12 +39,16 @@ class Manager:
         env : lmdb.Environment
         """
         mdb_filename = os.path.realpath(mdb_filename)
+        if mdb_filename not in self._max_dbs:
+            self._max_dbs[mdb_filename] = self.DEFAULT_MAXDBS
+
         if mdb_filename not in self.handles:
-            logger.debug('Opening database %s', mdb_filename)
+            logger.debug('Opening database %s with max_dbs=%i',
+                         mdb_filename, self._max_dbs[mdb_filename])
             self.handles[mdb_filename] = lmdb.open(mdb_filename,
                                                    map_size=1024 * 1024 * 1024 * 1024,
                                                    subdir=False,
-                                                   max_dbs=1024,
+                                                   max_dbs=self._max_dbs[mdb_filename],
                                                    **kwargs)
         # else:
         #     logger.debug('Reusing handle for database %s', mdb_filename)
@@ -59,7 +67,17 @@ class Manager:
 
         """
         env = self.get_environment(mdb_filename)
-        db = env.open_db(db_name.encode())
+        success = False
+        while not success:
+            try:
+                db = env.open_db(db_name.encode())
+                success = True
+            except lmdb.DbsFullError:
+                self._max_dbs[mdb_filename] = env.stat()['entries']+self.MAX_DBS_STEP
+                del env
+                self.close(mdb_filename)
+                env = self.get_environment(mdb_filename)
+
         return db
 
     def get_transaction(self, mdb_filename, db_name, **kwargs):
@@ -79,7 +97,17 @@ class Manager:
 
         """
         env = self.get_environment(mdb_filename)
-        db = env.open_db(db_name.encode())
+        success = False
+        while not success:
+            try:
+                db = env.open_db(db_name.encode())
+                success = True
+            except lmdb.DbsFullError:
+                self._max_dbs[mdb_filename] = env.stat()['entries']+self.MAX_DBS_STEP
+                del env
+                self.close(mdb_filename)
+                env = self.get_environment(mdb_filename)
+
         return env.begin(db=db, **kwargs)
 
     def db_exists(self, mdb_filename, db_name):
