@@ -73,8 +73,9 @@ def on_message(mqtt_client, userdata, message):
                     s = Sensor(userdata['mdb_filename'], sensor_name)
                     s.write_value(date, value, **userdata['write_value_kwargs'])
     elif re_esphome.fullmatch(message.topic):
+        # MQTT Message from https://esphome.io/components/mqtt
         # <TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMONENT_NAME>/state
-        # TOPIC_PREFIX is usally the hostname
+        # TOPIC_PREFIX is usually the hostname
         sensor_name, _ = message.topic.rsplit('/', 1)
         date = datetime.now()
         s = Sensor(userdata['mdb_filename'], sensor_name)
