@@ -430,12 +430,12 @@ class TimestampBytesDB(LMDBDict):
                 if cursor.first():
                     since = self._key_packer.unpack(cursor.key())
                     d_s['since'] = since.isoformat()
-                    d_s['since_epoch'] = since.strftime('%s')
+                    d_s['since_timestamp'] = since.timestamp()
                     # d_s['first_value'] = self._value_packer.unpack(cursor.value())
                 if cursor.last():
                     until = self._key_packer.unpack(cursor.key())
                     d_s['until'] = until.isoformat()
-                    d_s['until_epoch'] = until.strftime('%s')
+                    d_s['until_timestamp'] = until.timestamp()
                     # d_s['last_value'] = self._value_packer.unpack(cursor.value())
 
         return d_s
