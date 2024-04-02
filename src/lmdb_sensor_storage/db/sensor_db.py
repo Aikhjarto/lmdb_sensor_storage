@@ -9,7 +9,7 @@ from lmdb_sensor_storage.db._manager import manager
 from lmdb_sensor_storage._parser import as_datetime
 from lmdb_sensor_storage.db.packer import BytesPacker, StringPacker, JSONPacker, FloatPacker, \
     StructPacker
-from typing import Mapping, List, Sequence, Union, Any, Dict, Callable
+from typing import Mapping, List, Sequence, Union, Any, Dict, Callable, Iterable
 from typing_extensions import Literal
 import logging
 from sortedcontainers import SortedSet
@@ -312,12 +312,13 @@ class LMDBSensorStorage(Sensors):
             data.append(tmp)
         return {'series': series, 'data': data, 'labels': [""]}
 
-    def _get_common_keys(self, sensor_names: List[str], **timespan_kwargs):
+    def _get_common_keys(self, sensor_names: Iterable[str], **timespan_kwargs):
         keys = SortedSet()
         for sensor_name in sensor_names:
             keys.update(self[sensor_name].keys(**timespan_kwargs))
         return list(keys)
 
+    # noinspection PyProtectedMember
     def get_csv(self, sensor_names: Sequence[str], buffer_function: Callable = None,
                 include_header: bool = False, **timespan_kwargs):
 
@@ -359,7 +360,8 @@ class LMDBSensorStorage(Sensors):
                 line = f"{';'.join(tmp)}\n"
                 buffer_function(line.encode())
 
-    def get_json(self, sensor_names: Sequence[str],
+    # noinspection PyProtectedMember
+    def get_json(self, sensor_names: Iterable[str],
                  buffer_function: Callable = None,
                  **timespan_kwargs) -> Union[str, None]:
 

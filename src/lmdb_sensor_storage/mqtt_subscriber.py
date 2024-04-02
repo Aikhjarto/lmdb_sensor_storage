@@ -5,7 +5,6 @@ from lmdb_sensor_storage.db.sensor_db import Sensor
 import json
 import argparse
 import logging
-import numpy as np
 from lmdb_sensor_storage._parser import add_logging, setup_logging, add_mqtt, LoadFromFile, fromisoformat
 import regex
 
@@ -74,7 +73,7 @@ def on_message(mqtt_client, userdata, message):
                     s.write_value(date, value, **userdata['write_value_kwargs'])
     elif re_esphome.fullmatch(message.topic):
         # MQTT Message from https://esphome.io/components/mqtt
-        # <TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMONENT_NAME>/state
+        # <TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMPONENT_NAME>/state
         # TOPIC_PREFIX is usually the hostname
         sensor_name, _ = message.topic.rsplit('/', 1)
         date = datetime.now()

@@ -22,7 +22,6 @@ from lmdb_sensor_storage.mdb_server._http_request_handler import HTTPRequestHand
 from lmdb_sensor_storage.mdb_server import html_template
 from lmdb_sensor_storage.import_wunderground import import_wunderground_station
 from lmdb_sensor_storage._parser import as_datetime
-from lmdb_sensor_storage.db.packer import StructPacker
 
 
 def strtobool(val: str) -> bool:
@@ -319,7 +318,7 @@ class MDBRequestHandler(HTTPRequestHandler):
 
             try:
                 self.server.sensor_storage.get_json(sensor_names, self.write_chunked, **timespan_kwargs)
-            except Exception as e:
+            except Exception:
                 self.write_chunked(traceback.format_exc().encode())
 
             self.end_write_chunked()
@@ -346,7 +345,7 @@ class MDBRequestHandler(HTTPRequestHandler):
                                                    self.write_chunked,
                                                    include_header=include_header,
                                                    **timestamp_kwargs)
-            except Exception as e:
+            except Exception:
                 self.write_chunked(traceback.format_exc().encode())
             self.end_write_chunked()
 

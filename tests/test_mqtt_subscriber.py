@@ -16,6 +16,7 @@ import tempfile
 import sys
 
 
+# noinspection PyPep8Naming
 class LocalMQTTServerMixin:
     mosquitto_process: subprocess.Popen
 
@@ -36,6 +37,7 @@ class LocalMQTTServerMixin:
     def get_client(cls, client_id=None):
         # some versions of paho-mqtt do not have CallbackAPIVersion, some version require it to be set
         if hasattr(mqtt, "CallbackAPIVersion"):
+            # noinspection PyArgumentList
             client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
         else:
             client = mqtt.Client(client_id=client_id)
@@ -69,7 +71,7 @@ class LocalMQTTServerMixin:
         if hasattr(super(), 'setUp'):
             super().setUp()
 
-        #self._check_mosquitto_process()
+        # self._check_mosquitto_process()
 
     @classmethod
     def tearDownClass(cls):
@@ -97,8 +99,10 @@ def publish_function(client: mqtt.Client):
     client.publish('test_incompatible_datatypes', 1, **publish_kwargs)
     # client.publish('test_incompatible_datatypes', "ON", **publish_kwargs)  # incompatible type
 
-    # epoch/value pair
+    # epoch/value from ESP32_datalogger
     client.publish('test_json_epoch_value', json.dumps({'epoch': 0, 'value': 1.0}), **publish_kwargs)
+    client.publish('heizung/sensors/U1A_current',
+                   '{"epoch":1712040040,"bins":[50],"value":[0.164681]}', **publish_kwargs)
 
     # esphome state message
     client.publish('<TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMONENT_NAME>/state', '1.0', **publish_kwargs)
@@ -218,7 +222,7 @@ class TestMQTTSubscriber(LocalMQTTServerMixin, unittest.TestCase):
     def tearDownClass(cls):
         super().tearDownClass()
         manager.close_all()
-        #shutil.rmtree(cls.tempfolder)
+        # shutil.rmtree(cls.tempfolder)
 
     def test_compatible_datatype_change(self):
         self.assertEqual(3, len(self.db['test_compatible_datatype_change']))
@@ -241,6 +245,7 @@ class TestMQTTSubscriber(LocalMQTTServerMixin, unittest.TestCase):
 
     def test_json_epoch_value(self):
         self.assertEqual('f', self.db['test_json_epoch_value'].data_format)
+        self.assertEqual('1f', self.db['heizung/sensors/U1A_current'].data_format)
 
     def test_incompatible_datatypes(self):
         self.assertEqual(1, len(self.db['test_incompatible_datatypes']))

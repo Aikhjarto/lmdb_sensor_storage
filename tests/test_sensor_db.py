@@ -131,6 +131,7 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(new_date, db.get_last_changed())
 
 
+# noinspection PyPep8Naming
 class TestcaseTimestampBytesDB_get_at_timestamps(EmptyDatabaseMixin, unittest.TestCase):
     
     def setUp(self):

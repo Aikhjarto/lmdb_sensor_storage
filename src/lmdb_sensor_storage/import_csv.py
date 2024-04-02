@@ -4,6 +4,7 @@ from datetime import datetime
 import logging
 import struct
 from lmdb_sensor_storage._parser import add_logging, setup_logging, fromisoformat
+# noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
 
 logger = logging.getLogger('lmdb_sensor_storage')

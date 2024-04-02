@@ -67,11 +67,10 @@ class Manager:
 
         """
         env = self.get_environment(mdb_filename)
-        success = False
-        while not success:
+        while True:
             try:
                 db = env.open_db(db_name.encode())
-                success = True
+                break
             except lmdb.DbsFullError:
                 self._max_dbs[mdb_filename] = env.stat()['entries']+self.MAX_DBS_STEP
                 del env
@@ -97,11 +96,10 @@ class Manager:
 
         """
         env = self.get_environment(mdb_filename)
-        success = False
-        while not success:
+        while True:
             try:
                 db = env.open_db(db_name.encode())
-                success = True
+                break
             except lmdb.DbsFullError:
                 self._max_dbs[mdb_filename] = env.stat()['entries']+self.MAX_DBS_STEP
                 del env
