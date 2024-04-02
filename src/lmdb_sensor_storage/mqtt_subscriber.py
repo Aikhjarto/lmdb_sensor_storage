@@ -138,41 +138,33 @@ def on_message(mqtt_client, userdata, message):
 
     else:
         msg = message.payload.decode()
-        date = data = None
+        date = datetime.now()
+
+        # Note: don't use np.fromstring to decode payload data
+        # There are many bugreports that, in some versions of numpy, it does not raise a ValueError on inappropriate
+        # data, but returns something wrong or incomplete, e.g. https://github.com/numpy/numpy/issues/18435
+        # np.fromstring("2024-03-30T12:33:24.173890+00:00", dtype=float, sep=',') returns array([2024.])
+        # np.fromstring('"Hz"', dtype=float, sep=',') returns an array with zero elements.
 
         try:
-            json_dict = json.loads(msg)
+            # json.loads can decode single values of floats or strings, lists or dictionaries
+            data = json.loads(msg)
         except json.decoder.JSONDecodeError:
             # non-json
-            json_dict = None
+            data = msg
 
-        if isinstance(json_dict, dict):
-            # json
-            if "epoch" in json_dict and "value" in json_dict:
+        if isinstance(data, dict):
+            # decode epoch/value from ESP32_datalogger
+            if "epoch" in data and "value" in data:
                 # {"epoch":1670946356,"value":62.875}
-                date = datetime.fromtimestamp(float(json_dict['epoch']))
+                date = datetime.fromtimestamp(float(data['epoch']))
                 if date.year < 2016:
                     # sensor could not sync it's time
                     date = datetime.now()
-                data = json_dict['value']
-        else:
-            date = datetime.now()
-            try:
-                data = float(msg)
-            except ValueError:
-                data = np.fromstring(msg[1:-1], dtype=float, sep=',')
+                data = data['value']
 
-        if date is not None and data is not None:
-
-            try:
-                if len(data) == 1:
-                    data = data[0]
-            except TypeError:
-                # value has no length, so nothing to do
-                pass
-
-            s = Sensor(userdata['mdb_filename'], message.topic)
-            s.write_value(date, data, **userdata['write_value_kwargs'])
+        s = Sensor(userdata['mdb_filename'], message.topic)
+        s.write_value(date, data, **userdata['write_value_kwargs'])
 
 
 if __name__ == '__main__':
