@@ -25,6 +25,7 @@ dependencies = [
     "regex",
     "typing_extensions",
     "sortedcontainers",
+    "simplejson",
 ]
 dynamic = ["version"]
 

@@ -8,3 +8,4 @@ requests
 regex
 typing_extensions
 sortedcontainers
+simplejson

@@ -3,6 +3,7 @@ from io import BytesIO
 import json
 import struct
 import os
+import simplejson
 from lmdb_sensor_storage.db.timestamp_db import TimestampBytesDB, TimestampStringDB, TimestampYAMLDB
 from lmdb_sensor_storage.db.dict_db import StringRegexpDB, StringYamlDB
 from lmdb_sensor_storage.db._manager import manager
@@ -377,17 +378,9 @@ class LMDBSensorStorage(Sensors):
             buffer_function(','.join([f'"{key.isoformat()}"' for key in keys]).encode())
             buffer_function(']'.encode())
             for sensor_name in sensor_names:
-                buffer_function(f',"{sensor_name}":{{"values":['.encode())
+                buffer_function(f',"{sensor_name}":{{"values":'.encode())
                 values = self[sensor_name].values(at_timestamps=iter(keys), **timespan_kwargs)
-                if isinstance(self[sensor_name]._value_packer, StructPacker):
-                    b = ','.join([f'[{",".join([str(tmp) for tmp in value])}]' for value in values])
-                    buffer_function(b.encode())
-                elif isinstance(self[sensor_name]._value_packer, StringPacker):
-                    b = ','.join([f'"{value}"' for value in values])
-                    buffer_function(b.encode())
-                else:
-                    buffer_function(','.join(map(str, values)).encode())
-                buffer_function(']'.encode())
+                buffer_function(simplejson.dumps(values).encode())
                 metadata = self[sensor_name].metadata.as_dict()
                 if metadata:
                     buffer_function(',"metadata":'.encode())

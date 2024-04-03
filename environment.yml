@@ -12,4 +12,5 @@ dependencies:
     - regex
     - typing_extensions
     - conda-forge::paho-mqtt
+    - simplejson
 
