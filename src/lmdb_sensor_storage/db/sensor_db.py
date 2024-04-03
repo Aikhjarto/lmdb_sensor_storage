@@ -380,7 +380,7 @@ class LMDBSensorStorage(Sensors):
             for sensor_name in sensor_names:
                 buffer_function(f',"{sensor_name}":{{"values":'.encode())
                 values = self[sensor_name].values(at_timestamps=iter(keys), **timespan_kwargs)
-                buffer_function(simplejson.dumps(values).encode())
+                buffer_function(simplejson.dumps(values, ignore_nan=True).encode())
                 metadata = self[sensor_name].metadata.as_dict()
                 if metadata:
                     buffer_function(',"metadata":'.encode())
