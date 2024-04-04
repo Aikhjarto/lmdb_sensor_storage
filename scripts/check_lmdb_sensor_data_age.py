@@ -33,6 +33,8 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument('--sensor-name', type=str, required=True, action='append')
 
+    parser.add_argument('--oldest-of', action='store_true', default=False)
+
     return parser
 
 
@@ -77,7 +79,10 @@ def main():
             print(f'UNKNOWN - No data found for sensor {sensor_name} in file {args.mdb_filename}')
             exit(UNKNOWN)
         else:
-            timestamp = max(timestamp, _timestamp)
+            if args.oldest_of:
+                timestamp = min(timestamp, _timestamp)
+            else:
+                timestamp = max(timestamp, _timestamp)
 
     # https://assets.nagios.com/downloads/nagioscore/docs/nagioscore/3/en/pluginapi.html
     # noinspection PyPep8Naming
