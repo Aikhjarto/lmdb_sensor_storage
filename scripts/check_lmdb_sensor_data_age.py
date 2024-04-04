@@ -27,13 +27,19 @@ def setup_parser() -> argparse.ArgumentParser:
     parser.add_argument('-w', type=str, required=True,
                         help='If age of the last sample in seconds is higher than `W`, state is WARNING')
 
-    parser.add_argument('--last-change', action='store_true', default=False)
+    parser.add_argument('--last-change', action='store_true', default=False,
+                        help='If give, check for time last value change instead of time of last entry.')
 
-    parser.add_argument('--mdb-filename', type=str, required=True)
+    parser.add_argument('--mdb-filename', type=str, required=True,
+                        metavar='file')
 
-    parser.add_argument('--sensor-name', type=str, required=True, action='append')
+    parser.add_argument('--sensor-name', type=str, required=True, action='append',
+                        metavar='name')
 
-    parser.add_argument('--oldest-of', action='store_true', default=False)
+    parser.add_argument('--oldest-of', action='store_true', default=False,
+                        help='If given, the oldest entry among all given "--sensor_name name" is checked '
+                             'against -c and -w, '
+                             'otherwise the most recent one is checked.')
 
     return parser
 
