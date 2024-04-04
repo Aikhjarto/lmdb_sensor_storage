@@ -58,7 +58,8 @@ def main():
         sensor_names.append(''.join(tmp))
 
     if timedelta_warning >= timedelta_critical:
-        raise RuntimeError('Warning age must be smaller than critical age')
+        print('UNKNOWN - Warning age must be smaller than critical age')
+        exit(UNKNOWN)
 
     if not os.path.isfile(args.mdb_filename):
         print(f'UNKNOWN - File {args.mdb_filename} does not exist')
