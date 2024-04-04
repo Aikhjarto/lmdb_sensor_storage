@@ -13,7 +13,7 @@ UNKNOWN = 3
 try:
     from lmdb_sensor_storage.db.sensor_db import Sensor
 except ImportError:
-    print('UNKNOWN - cannot find lmdb_sensor_storage module')
+    print('UNKNOWN - cannot import lmdb_sensor_storage module')
     exit(UNKNOWN)
 
 
