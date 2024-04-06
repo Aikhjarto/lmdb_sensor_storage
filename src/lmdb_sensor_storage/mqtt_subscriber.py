@@ -55,7 +55,12 @@ def on_message(mqtt_client, userdata, message):
         # heizung/c8c9a3c7c50c/history {"len":9,"epoch":[1670946115,1670946131,1670946147,1670946163,1670946179,1670946198,1670946214,1670946230,1670946246],"Vorlauftemperatur Kreis 1":[40.8125,40.8125,40.8125,40.8125,40.8125,40.8125,40.8125,40.8125,40.8125],"Rücklauftemperatur Kreis 1":[33.8125,33.8125,33.8125,33.8125,33.8125,33.875,33.875,33.8125,33.8125],"Vorlauftemperatur Kreis 2":[40.0625,40.625,41.3125,42.0625,42.6875,42.9375,43,43,42.9375],"Rücklauftemperatur Kreis 2":[36.9375,37,37.0625,37.0625,37,36.875,36.75,36.625,36.5625],"Buffertemperatur":[66.75,66.75,66.75,66.75,66.75,66.75,66.8125,66.8125,66.8125],"Vorlaufpumpe Kreis 1":[0,0,0,0,0,0,0,0,0]}
         # heizung/b0b21ca893f8/history {"len":1,"epoch":[1709279498],"Current Sensors Temperature":[27.75],"spectrum":{"len":1,"frequencies":[50],"U1A_current":[[0.0281364]],"U1B_current":[[0.282819]],"U2_current":[[0.00199494]],"U3_current":[[0.000936895]],"U4_current":[[0.000550473]],"U5_current":[[0.000337011]]}}
         # heizung/34865d44bcd8/history {"len":9,"epoch":[1709534436,1709534452,1709534469,1709534486,1709534502,1709534521,1709534537,1709534554,1709534571],"Photoresistor":[0,0,0,0,0,0,0,0,0],"RGBC":[[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]]}
-        data = json.loads(message.payload.decode())
+        try:
+            data = json.loads(message.payload.decode())
+        except json.decoder.JSONDecodeError:
+            logger.error('Cannot decode message {message.payload.decode()} as json')
+            return
+
         dates = [datetime.fromtimestamp(epoch) for epoch in data['epoch']]
         del data['len']
         del data['epoch']
