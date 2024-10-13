@@ -92,6 +92,7 @@ def publish_function(client: mqtt.Client):
     client.publish('test_float_as_str', "1.0", **publish_kwargs)
     client.publish('test_csv', "1.0,2,3,4.1", **publish_kwargs)
     client.publish('test_float_list', "[1.0,2,3,4.1]", **publish_kwargs)
+    client.publish('test_float_list_of_1', "[1.0]", **publish_kwargs)
     client.publish('test_string', "ON", **publish_kwargs)
 
     client.publish('test_compatible_datatype_change', 1.0, **publish_kwargs)
@@ -102,6 +103,8 @@ def publish_function(client: mqtt.Client):
 
     # epoch/value from ESP32_datalogger
     client.publish('test_json_epoch_value', json.dumps({'epoch': 0, 'value': 1.0}), **publish_kwargs)
+    client.publish('test_json_epoch_value_list', json.dumps({'epoch': 0, 'value': [1.0, 2, 4.0]}), **publish_kwargs)
+    client.publish('test_json_epoch_value_list_of_1', json.dumps({'epoch': 0, 'value': [1.0,]}), **publish_kwargs)
     client.publish('heizung/sensors/U1A_current',
                    '{"epoch":1712040040,"bins":[50],"value":[0.164681]}', **publish_kwargs)
     client.publish('test_json_nan', '{"epoch":1728727628,"value": NaN}', **publish_kwargs)
@@ -249,6 +252,9 @@ class TestMQTTSubscriber(LocalMQTTServerMixin, unittest.TestCase):
     def test_float_list(self):
         self.assertEqual('4f', self.db['test_float_list'].data_format)
 
+    def test_float_list_of_1(self):
+        self.assertEqual('1f', self.db['test_float_list_of_1'].data_format)
+
     def test_float_as_str(self):
         self.assertEqual('f', self.db['test_float_as_str'].data_format)
 
@@ -259,6 +265,12 @@ class TestMQTTSubscriber(LocalMQTTServerMixin, unittest.TestCase):
         self.assertEqual('f', self.db['test_json_epoch_value'].data_format)
         self.assertEqual('1f', self.db['heizung/sensors/U1A_current'].data_format)
     
+    def test_json_epoch_value_list(self):
+        self.assertEqual('3f', self.db['test_json_epoch_value_list'].data_format)
+    
+    def test_json_epoch_value_list_of_1(self):
+        self.assertEqual('1f', self.db['test_json_epoch_value_list_of_1'].data_format)
+
     def test_json_nan(self):
         self.assertTrue('test_json_nan' in self.db)
         self.assertEqual('f', self.db['test_json_nan'].data_format)
