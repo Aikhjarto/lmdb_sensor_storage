@@ -209,7 +209,8 @@ class TestMQTTSubscriber(LocalMQTTServerMixin, unittest.TestCase):
         # setup logging
         logger = logging.getLogger('lmdb_sensor_storage.mqtt_subscriber')
         logger.setLevel('DEBUG')
-        client.logger = logger
+        #client.logger = logger
+        
         # manually add stdout handler, otherwise unittest does not caputer logger's output
         logger.addHandler(logging.StreamHandler(sys.stdout))
 
