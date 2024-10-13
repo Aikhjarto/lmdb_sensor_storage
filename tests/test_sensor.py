@@ -20,7 +20,29 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(None, s.data_format)
         s.write_value(date, data)
         self.assertEqual('f', s.data_format)
-        self.assertEqual([0.0, ], s.values())
+        self.assertEqual([data, ], s.values())
+
+    def test_nan_guessing(self):
+        s = Sensor(self.mdb_filename, 'test_nan_float')
+        date = datetime.now()
+        data = float('nan')
+        s.write_value(date, data)
+        self.assertEqual('f', s.data_format)
+        self.assertTrue(np.isnan(s.get_last_value()))
+
+    def test_nan_string_guessing(self):
+        s = Sensor(self.mdb_filename, 'test_nan_string')
+        date = datetime.now()
+        data = 'nan'
+        s.write_value(date, data)
+        self.assertEqual('f', s.data_format)
+        self.assertTrue(np.isnan(s.get_first_value()))
+
+    def test_write_nan_on_float(self):
+        s = Sensor(self.mdb_filename,'test_write_nan_on_float', data_format='f')
+        date = datetime.now()
+        s.write_value(date, 'nan')
+        self.assertTrue(np.isnan(s.get_last_value()))
 
     def test_packed_write_read(self):
         s = Sensor(self.mdb_filename, 'a', data_format='fhf')

@@ -14,7 +14,8 @@ import threading
 import pprint
 import tempfile
 import sys
-
+import datetime
+import numpy as np
 
 # noinspection PyPep8Naming
 class LocalMQTTServerMixin:
@@ -103,6 +104,10 @@ def publish_function(client: mqtt.Client):
     client.publish('test_json_epoch_value', json.dumps({'epoch': 0, 'value': 1.0}), **publish_kwargs)
     client.publish('heizung/sensors/U1A_current',
                    '{"epoch":1712040040,"bins":[50],"value":[0.164681]}', **publish_kwargs)
+    client.publish('test_json_nan', '{"epoch":1728727628,"value": NaN}', **publish_kwargs)
+    client.publish('test_json_nan_on_float', '{"epoch":1728727628,"value": NaN}', **publish_kwargs)
+    client.publish('test_json_str_nan', '{"epoch":1728727628,"value": "nan"}', **publish_kwargs)
+    client.publish('test_json_nan_array', '{"epoch":1728727628,"value": [1.0, 2.0, NaN, 4.0]}', **publish_kwargs)
 
     # esphome state message
     client.publish('<TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMONENT_NAME>/state', '1.0', **publish_kwargs)
@@ -141,6 +146,12 @@ def publish_function(client: mqtt.Client):
                                                     66.8125],
                                "Vorlaufpumpe Kreis 1": [0, 0, 0, 0, 0, 0, 0, 0, 0]}),
                    **publish_kwargs)
+
+    client.publish('test_history_with_nan/history', 
+                   '{"len":4,"epoch":[1728809579,1728809614,1728809649,1728809684],'
+                   '"test_history_some_nan":[1.4,NaN,2.0,NaN]}',
+                   **publish_kwargs)
+
 
     # homeassistant
     client.publish('homeassistant/sensor/sofar_grid_frequency/state', 49.97, **publish_kwargs)
@@ -216,6 +227,7 @@ class TestMQTTSubscriber(LocalMQTTServerMixin, unittest.TestCase):
 
         cls.db = LMDBSensorStorage(cls.mdb_filename)
         stats = cls.db.statistics
+        cls.db['test_json_nan_on_float'].write_value(datetime.datetime.fromtimestamp(0.0), 1.0)
         pprint.pprint(stats)
 
     @classmethod
@@ -246,6 +258,35 @@ class TestMQTTSubscriber(LocalMQTTServerMixin, unittest.TestCase):
     def test_json_epoch_value(self):
         self.assertEqual('f', self.db['test_json_epoch_value'].data_format)
         self.assertEqual('1f', self.db['heizung/sensors/U1A_current'].data_format)
+    
+    def test_json_nan(self):
+        self.assertTrue('test_json_nan' in self.db)
+        self.assertEqual('f', self.db['test_json_nan'].data_format)
+        self.assertTrue(np.isnan(self.db['test_json_nan'].values()[0]))
+
+    def test_json_nan_on_float(self):
+        self.assertEqual(2, len(self.db['test_json_nan_on_float']))
+
+    def test_json_string_nan(self):
+        self.assertEqual('f', self.db['test_json_str_nan'].data_format)
+        self.assertTrue(np.isnan(self.db['test_json_str_nan'].get_last_value()))
+
+    def test_json_nan_array(self):
+        vals = self.db['test_json_nan_array'].get_last_value()
+        self.assertAlmostEqual(1.0, vals[0])
+        self.assertAlmostEqual(2.0, vals[1])
+        self.assertTrue(np.isnan(vals[2]))
+        self.assertAlmostEqual(4.0, vals[3])
+        self.assertEqual('4f', self.db['test_json_nan_array'].data_format)
+
+    def test_history_some_nan(self):
+        self.assertEqual(4, len(self.db['test_history_some_nan']))
+        self.assertEqual('f',self.db['test_history_some_nan'].data_format)
+        vals = self.db['test_history_some_nan'].values()
+        self.assertAlmostEqual(1.4, vals[0])
+        self.assertTrue(np.isnan(vals[1]))
+        self.assertAlmostEqual(2.0, vals[2])
+        self.assertTrue(np.isnan(vals[3]))
 
     def test_incompatible_datatypes(self):
         self.assertEqual(1, len(self.db['test_incompatible_datatypes']))

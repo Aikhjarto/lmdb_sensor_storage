@@ -56,9 +56,9 @@ def on_message(mqtt_client, userdata, message):
         # heizung/b0b21ca893f8/history {"len":1,"epoch":[1709279498],"Current Sensors Temperature":[27.75],"spectrum":{"len":1,"frequencies":[50],"U1A_current":[[0.0281364]],"U1B_current":[[0.282819]],"U2_current":[[0.00199494]],"U3_current":[[0.000936895]],"U4_current":[[0.000550473]],"U5_current":[[0.000337011]]}}
         # heizung/34865d44bcd8/history {"len":9,"epoch":[1709534436,1709534452,1709534469,1709534486,1709534502,1709534521,1709534537,1709534554,1709534571],"Photoresistor":[0,0,0,0,0,0,0,0,0],"RGBC":[[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]]}
         try:
-            data = json.loads(message.payload.decode())
+            data = json.loads(message.payload.decode(), parse_constant=float)
         except json.decoder.JSONDecodeError:
-            logger.error('Cannot decode message {message.payload.decode()} as json')
+            logger.error(f'Cannot decode message {message.payload.decode()} as json')
             return
 
         dates = [datetime.fromtimestamp(epoch) for epoch in data['epoch']]
@@ -101,7 +101,7 @@ def on_message(mqtt_client, userdata, message):
         # }
 
         try:
-            data = json.loads(message.payload.decode())
+            data = json.loads(message.payload.decode(), parse_constant=float)
         except json.decoder.JSONDecodeError:
             logger.error('Cannot decode message {message.payload.decode()} as json')
             return
@@ -152,7 +152,7 @@ def on_message(mqtt_client, userdata, message):
 
         try:
             # json.loads can decode single values of floats or strings, lists or dictionaries
-            data = json.loads(msg)
+            data = json.loads(msg, parse_constant=float)
         except json.decoder.JSONDecodeError:
             # non-json
             data = msg
