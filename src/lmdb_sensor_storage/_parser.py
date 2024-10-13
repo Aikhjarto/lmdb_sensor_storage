@@ -99,7 +99,7 @@ def fromisoformat(s):
     datetime.datetime
 
     """
-    if hasattr(datetime, 'fromisoformat'):
+    if hasattr(datetime.datetime, 'fromisoformat'):
         return datetime.datetime.fromisoformat(s)
     else:
         # python 3.6 des not have built-in fromisoformat
