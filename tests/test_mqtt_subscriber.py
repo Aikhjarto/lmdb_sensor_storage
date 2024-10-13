@@ -72,16 +72,22 @@ class LocalMQTTServerMixin:
         if hasattr(super(), 'setUp'):
             super().setUp()
 
-        # self._check_mosquitto_process()
+        self._check_mosquitto_process()
 
     @classmethod
     def tearDownClass(cls):
         cls.mosquitto_process.terminate()
         stdout = cls.mosquitto_process.stdout.read()
         stderr = cls.mosquitto_process.stderr.read()
-        print(f'mosquitto stopped\n'
-              f'stdout={stdout.decode()}\n'
-              f'stderr={stderr.decode()}\n')
+        ret = cls.mosquitto_process.returncode
+        if ret != 0:
+            print(f'mosquitto stopped\n'
+                  f'stdout={stdout.decode()}\n'
+                  f'stderr={stderr.decode()}\n')
+        else:
+            raise RuntimeError(f'mosquitto stopped with error code {ret}\n'
+                               f'stdout={stdout.decode()}\n'
+                               f'stderr={stderr.decode()}\n')
 
 
 def publish_function(client: mqtt.Client):
@@ -238,7 +244,7 @@ class TestMQTTSubscriber(LocalMQTTServerMixin, unittest.TestCase):
     def tearDownClass(cls):
         super().tearDownClass()
         manager.close_all()
-        # shutil.rmtree(cls.tempfolder)
+        shutil.rmtree(cls.tempfolder)
 
     def test_compatible_datatype_change(self):
         self.assertEqual(3, len(self.db['test_compatible_datatype_change']))
