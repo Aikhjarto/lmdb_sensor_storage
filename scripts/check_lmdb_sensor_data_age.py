@@ -2,6 +2,7 @@
 import argparse
 import os
 from datetime import datetime, timedelta
+import numpy as np
 
 # NAGIOS return codes :
 # https://nagios-plugins.org/doc/guidelines.html#AEN78
@@ -35,6 +36,9 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument('--sensor-name', type=str, required=True, action='append',
                         metavar='name')
+    
+    parser.add_argument('--no-error-if-nan', action='store_true', default=False,
+                        help='Report state critical, when a sensor has not-a-number as last value.')
 
     parser.add_argument('--oldest-of', action='store_true', default=False,
                         help='If given, the oldest entry among all given "--sensor_name name" is checked '
@@ -76,8 +80,20 @@ def main():
             exit(UNKNOWN)
 
     timestamp = datetime.min
+    sensors_with_nan = []
     for sensor_name in sensor_names:
         sensor = Sensor(args.mdb_filename, sensor_name)
+
+        if args.no_error_if_nan:
+            last_value = sensor.get_last_value()
+            is_nan = False
+            try: 
+                is_nan = np.isnan(last_value)
+            except TypeError:
+                pass
+            if is_nan:
+                sensors_with_nan.append(sensor_name)
+        
         if args.last_change:
             _timestamp = sensor.get_last_changed()
         else:
@@ -95,6 +111,11 @@ def main():
     # noinspection PyPep8Naming
     SERVICEPERFDATA = f'|age={(datetime.now()-timestamp).seconds}s;' \
                       f'{timedelta_warning.seconds};{timedelta_critical.seconds}'
+    
+    if not args.no_error_if_nan and sensors_with_nan:
+        print(f'CRITICAL - Sensors with nan: [{", ".join(sensor_names)}{SERVICEPERFDATA}]')
+        exit(CRITICAL)
+
     # noinspection PyPep8Naming
     SERVICEOUTPUT = f'Last sensor update: {timestamp}'
     if timestamp < datetime.now()-abs(timedelta_critical):
