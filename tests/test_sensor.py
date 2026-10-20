@@ -90,16 +90,18 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
         s.write_values(dates, values)
         self.assertEqual(s.items(), list(zip(dates, values)))
 
+        # buckets of 7 seconds, the last one (98, 99) is incomplete
+        chunks = [(dates[i:i + 7], values[i:i + 7]) for i in range(0, 100, 7)]
         self.assertEqual(
             s.items(decimate_to_s=7, timestamp_chunker=timestamp_chunker_center, value_chunker=value_chunker_mean),
-            [(dates[i] + (dates[i + 6] - dates[i]) / 2, np.mean(values[i:i + 7])) for i in range(0, 100 - 7, 7)])
+            [(cd[0] + (cd[-1] - cd[0]) / 2, np.mean(cv)) for cd, cv in chunks])
 
         self.assertEqual(s.items(limit=7), list(zip(dates[:8], values[:8])))
         d = []
         v = []
-        for i in range(0, 100 - 7, 7):
-            d.extend([dates[i], dates[i] + (dates[i + 6] - dates[i]) / 2, dates[i + 6]])
-            v.extend([np.min(values[i:i + 7]), np.mean(values[i:i + 7]), np.max(values[i:i + 7])])
+        for cd, cv in chunks:
+            d.extend([cd[0], cd[0] + (cd[-1] - cd[0]) / 2, cd[-1]])
+            v.extend([np.min(cv), np.mean(cv), np.max(cv)])
 
         self.assertEqual(
             s.items(decimate_to_s=7, timestamp_chunker=timestamp_chunker_minmeanmax,

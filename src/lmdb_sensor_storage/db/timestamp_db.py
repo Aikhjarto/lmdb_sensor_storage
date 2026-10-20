@@ -337,9 +337,6 @@ class TimestampBytesDB(LMDBDict):
         stop_date = None
         for row_date, value in self._get_timespan(since=since, until=until, endpoint=True, what='items'):
 
-            if until is not None and row_date > until:
-                yield dates, values
-
             if n > 0:
                 if row_date >= stop_date:
                     yield dates, values
@@ -355,6 +352,9 @@ class TimestampBytesDB(LMDBDict):
                 values = [value, ]
                 dates = [row_date, ]
                 n = 1
+
+        if n > 0:  # last, possibly incomplete, segment
+            yield dates, values
 
     def values(self, since: datetime = None, until: datetime = None,
                endpoint: bool = False, limit: int = None,
