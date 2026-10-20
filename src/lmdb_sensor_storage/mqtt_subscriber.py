@@ -182,6 +182,22 @@ def on_message(mqtt_client, userdata, message):
                        message.topic, message.payload[:100], e)
 
 
+def on_connect(mqtt_client, userdata, flags, reason_code, properties):
+    """(Re-)subscribe on every connect, since a reconnect with a clean session drops all subscriptions."""
+    if reason_code.is_failure:
+        logger.error('MQTT connect failed: %s', reason_code)
+        return
+    logger.warning('Connected to MQTT broker, subscribing to %s', userdata['topics'])
+    for topic in userdata['topics']:
+        res, mid = mqtt_client.subscribe(topic)
+        if res != mqtt.MQTT_ERR_SUCCESS:
+            logger.error(f'Subscribe to topic "{topic}" failed with error {res}')
+
+
+def on_disconnect(mqtt_client, userdata, flags, reason_code, properties):
+    logger.warning('Disconnected from MQTT broker: %s', reason_code)
+
+
 if __name__ == '__main__':
 
     p = setup_parser()
@@ -191,22 +207,21 @@ if __name__ == '__main__':
 
     logger.debug('Starting with parameters %s', args.__dict__)
 
-    client = mqtt.Client()
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.username_pw_set(args.mqtt_username, args.mqtt_password)
-    res = client.connect(host=args.mqtt_broker, port=args.mqtt_broker_port)
-    if res != mqtt.MQTT_ERR_SUCCESS:
-        raise RuntimeError(f'MQTT connection error {res}')
-
-    # subscribe to topics
-    for topic in args.mqtt_subscribe_topic:
-        res, mid = client.subscribe(topic)
-        if res != mqtt.MQTT_ERR_SUCCESS:
-            logger.error(f'Subscribe to topic "{topic}" failed with error {res}')
     client.user_data_set({'mdb_filename': args.mdb_filename,
+                          'topics': args.mqtt_subscribe_topic,
                           'write_value_kwargs': {'only_if_value_changed': True,
                                                  'max_age_seconds': args.max_age_seconds,
                                                  }
                           }
                          )
+    client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
     client.on_message = on_message
+
+    res = client.connect(host=args.mqtt_broker, port=args.mqtt_broker_port)
+    if res != mqtt.MQTT_ERR_SUCCESS:
+        raise RuntimeError(f'MQTT connection error {res}')
+
     client.loop_forever()
