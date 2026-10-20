@@ -108,6 +108,19 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(db.items(), [(key2, val2)])
         self.assertEqual(len(db), 1)
 
+    def test_delete_entries(self):
+        db = TimestampBytesDB(self.mdb_filename, 'd')
+        dates = [datetime(2024, 1, 1, 0, i) for i in range(10)]
+        for date in dates:
+            db.write_value(date, b'1')
+
+        db.delete_entries(since=dates[2], until=dates[7])
+        self.assertEqual(db.keys(), dates[:2] + dates[8:])
+
+        # delete up to the last entry
+        db.delete_entries(since=dates[8])
+        self.assertEqual(db.keys(), dates[:2])
+
     def test_last_changed(self):
         db = TimestampBytesDB(self.mdb_filename, 'h')
         db._get_lmdb_stats()

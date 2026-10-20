@@ -114,8 +114,7 @@ class TimestampBytesDB(LMDBDict):
                         # loop until no more key before 'until' exists or deletion fails
                         if not c.delete():
                             raise IOError
-                        if not c.next():
-                            break
+                        key = c.key()
 
                 else:
                     return False
