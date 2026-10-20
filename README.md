@@ -102,7 +102,8 @@ Submodule `sensor_db` provides classes for easy storage of time-series data.
 ### Callable Modules
 `python3 -m lmdb_sensor_storage.mdb_server` provides a web-interface and an HTTP API.
 
-`python3 -m lmdb_sensor_storage.copy_sensor_data` can copy sensor data from one mdb-file to another.
+`python3 -m lmdb_sensor_storage.copy_sensor_data` can copy sensor data from one mdb-file to another, or within one
+mdb-file to a new name. With `--move`, the source sensor is deleted after the copy was verified.
 
 `python3 -m lmdb_sensor_storage.import_wunderground`
 
