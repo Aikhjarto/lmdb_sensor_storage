@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime
 import numpy as np
 
-from lmdb_sensor_storage import Sensor
+from lmdb_sensor_storage import Sensor, LMDBSensorStorage
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
 from lmdb_sensor_storage.db.chunker import timestamp_chunker_center, value_chunker_mean, value_chunker_minmeanmax, \
@@ -178,6 +178,16 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
         # error is raised if copied to already existing location is new file
         with self.assertRaises(RuntimeError):
             s.copy_to('j', new_mdb_filename)
+
+
+class TestcaseSensorConcurrency(EmptyDatabaseMixin, unittest.TestCase):
+
+    def test_recreate_after_delete(self):
+        storage = LMDBSensorStorage(self.mdb_filename)
+        Sensor(self.mdb_filename, 'k').write_value(datetime(2024, 1, 1), 1.0)
+        del storage['k']
+        Sensor(self.mdb_filename, 'k').write_value(datetime(2024, 1, 2), 2.0)
+        self.assertEqual(Sensor(self.mdb_filename, 'k').items(), [(datetime(2024, 1, 2), 2.0)])
 
 
 if __name__ == "__main__":
