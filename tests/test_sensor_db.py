@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 import unittest
 from datetime import datetime, timedelta
 from lmdb_sensor_storage.db.sensor_db import TimestampBytesDB
@@ -120,6 +123,29 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
         # delete up to the last entry
         db.delete_entries(since=dates[8])
         self.assertEqual(db.keys(), dates[:2])
+
+    def test_read_does_not_block_writer(self):
+        db = TimestampBytesDB(self.mdb_filename, 'r')
+        dates = [datetime(2024, 1, 1, 0, i) for i in range(3)]
+        for date in dates:
+            db.write_value(date, b'1')
+
+        # a partially consumed read keeps its transaction open
+        reader = db._get_timespan(what='keys')
+        self.assertEqual(next(reader), dates[0])
+
+        # write from another process, like the MQTT subscriber does while the web server reads
+        code = ('import sys; from datetime import datetime; '
+                'from lmdb_sensor_storage.db.sensor_db import TimestampBytesDB; '
+                'TimestampBytesDB(sys.argv[1], "r").write_value(datetime(2024, 1, 2), b"2")')
+        try:
+            subprocess.run([sys.executable, '-c', code, self.mdb_filename],
+                           env={**os.environ, 'PYTHONPATH': os.pathsep.join(sys.path)},
+                           check=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            self.fail('write was blocked by an open read')
+        finally:
+            reader.close()
 
     def test_last_changed(self):
         db = TimestampBytesDB(self.mdb_filename, 'h')

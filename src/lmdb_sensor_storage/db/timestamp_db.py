@@ -156,7 +156,7 @@ class TimestampBytesDB(LMDBDict):
             # get samples between since and until
             count = 0
             if manager.db_exists(self._mdb_filename, self._db_name):
-                with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
+                with manager.get_transaction(self._mdb_filename, self._db_name, write=False) as txn:
                     c = txn.cursor()
                     if c.first() and c.set_range(self._key_packer.pack(since)):
                         key = c.key()
@@ -196,7 +196,7 @@ class TimestampBytesDB(LMDBDict):
             count = 0
             iteration_stopped = False
             if manager.db_exists(self._mdb_filename, self._db_name):
-                with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
+                with manager.get_transaction(self._mdb_filename, self._db_name, write=False) as txn:
                     c = txn.cursor()
 
                     # move to first value after `since`
