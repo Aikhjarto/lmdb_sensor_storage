@@ -29,4 +29,4 @@ if __name__ == '__main__':
 
     setup_logging(logger, syslog=args.syslog, loglevel=args.loglevel)
     sensor = Sensor(args.import_mdb_filename, args.import_sensor_name)
-    sensor.copy_to(args.export_mdb_filename, args.export_sensor_name)
+    sensor.copy_to(args.export_sensor_name, args.export_mdb_filename)
