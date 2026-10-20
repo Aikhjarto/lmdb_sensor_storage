@@ -3,8 +3,8 @@ import paho.mqtt.client as mqtt
 from datetime import datetime
 from lmdb_sensor_storage.db.sensor_db import Sensor
 import json
-import struct
 import argparse
+import lmdb
 import logging
 from lmdb_sensor_storage._parser import add_logging, setup_logging, add_mqtt, LoadFromFile, fromisoformat
 import regex
@@ -173,13 +173,16 @@ def _on_message(mqtt_client, userdata, message):
 
 
 def on_message(mqtt_client, userdata, message):
-    """Store a message; skip a value that does not fit the sensor's type, e.g.
-    'unavailable' or 'unknown' from Home Assistant, instead of crashing."""
+    """Store a message; skip a malformed message or a value that does not fit the sensor's type, e.g.
+    'unavailable' or 'unknown' from Home Assistant, instead of crashing.
+    Database errors are raised, since they will not go away by skipping messages."""
     try:
         _on_message(mqtt_client, userdata, message)
-    except (ValueError, TypeError, struct.error) as e:
-        logger.warning("skipping message on topic '%s' with payload '%s': %s",
-                       message.topic, message.payload[:100], e)
+    except lmdb.Error:
+        raise
+    except Exception:
+        logger.exception("skipping message on topic '%s' with payload '%s'",
+                         message.topic, message.payload[:100])
 
 
 def on_connect(mqtt_client, userdata, flags, reason_code, properties):

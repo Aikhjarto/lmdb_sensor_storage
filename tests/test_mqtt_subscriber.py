@@ -16,6 +16,8 @@ import tempfile
 import sys
 import datetime
 import numpy as np
+import lmdb
+from tests import EmptyDatabaseMixin
 
 # noinspection PyPep8Naming
 class LocalMQTTServerMixin:
@@ -309,6 +311,34 @@ class TestMQTTSubscriber(LocalMQTTServerMixin, unittest.TestCase):
 
     def test_incompatible_datatypes(self):
         self.assertEqual(1, len(self.db['test_incompatible_datatypes']))
+
+
+class TestOnMessage(EmptyDatabaseMixin, unittest.TestCase):
+    """Call on_message directly, no broker required."""
+
+    def on_message(self, topic, payload, mdb_filename=None):
+        message = mqtt.MQTTMessage(topic=topic.encode())
+        message.payload = payload.encode()
+        userdata = {'mdb_filename': mdb_filename or self.mdb_filename,
+                    'write_value_kwargs': {'only_if_value_changed': True, 'max_age_seconds': None}}
+        on_message(None, userdata, message)
+
+    def test_malformed_messages_are_skipped(self):
+        with self.assertLogs('lmdb_sensor_storage.mqtt_subscriber', level='ERROR'):
+            self.on_message('heizung/abc/history', '{"len": 1}')  # KeyError: no epoch
+        with self.assertLogs('lmdb_sensor_storage.mqtt_subscriber', level='ERROR'):
+            self.on_message('tele/tasmota/SENSOR', '{"DS18B20-1": {}}')  # KeyError: no Time
+        with self.assertLogs('lmdb_sensor_storage.mqtt_subscriber', level='ERROR'):
+            self.on_message('heizung/abc/history', '[1, 2]')  # TypeError: list indices
+
+        # still working afterwards
+        self.on_message('test/value', '1.5')
+        self.assertEqual([1.5], LMDBSensorStorage(self.mdb_filename)['test/value'].values())
+
+    def test_database_errors_are_raised(self):
+        # a directory cannot be opened as mdb file
+        with self.assertRaises(lmdb.Error):
+            self.on_message('test/value', '1.5', mdb_filename=self.tempfolder)
 
 
 if __name__ == '__main__':
