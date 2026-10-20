@@ -194,8 +194,13 @@ class UnitTests(unittest.TestCase):
         s[self.reference_date] = 1
         Notes(self.mdb_filename).add_note(payload, payload, self.reference_date)
 
-        req = requests.request('GET', f'{self.base_url}/today', timeout=10)
+        # time range must include the note
+        params = {'since': (self.reference_date - datetime.timedelta(hours=1)).isoformat(),
+                  'until': (self.reference_date + datetime.timedelta(hours=1)).isoformat()}
+        req = requests.request('GET', f'{self.base_url}/time', params=params, timeout=10)
         self.assertEqual(200, req.status_code)
+        # escaped note in the form for deleting notes
+        self.assertIn('; &lt;/script&gt;&lt;img src=x onerror=alert(1)&gt;</option>', req.text)
         self.assertIn('alert(1)', req.text)
         self.assertNotIn('<img', req.text)
 

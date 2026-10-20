@@ -444,7 +444,8 @@ class MDBRequestHandler(HTTPRequestHandler):
             # delete note form
             options = []
             for t_isoformat, val in self.server.sensor_storage.notes.items(since=since, until=until):
-                options.append(f'<option value="{escape(t_isoformat)}">{escape(t_isoformat)}; {escape(val["short"])}</option>')
+                options.append(f'<option value="{escape(str(t_isoformat))}">'
+                               f'{escape(str(t_isoformat))}; {escape(val["short"])}</option>')
             delete_note_form = self.html_delete_note_form_template.format(options='\n'.join(options))
 
             # add note form
