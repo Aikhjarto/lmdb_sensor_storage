@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest import mock
 from datetime import datetime
 import numpy as np
 
@@ -181,6 +182,17 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
 
 
 class TestcaseSensorConcurrency(EmptyDatabaseMixin, unittest.TestCase):
+
+    def test_construct_without_write_transaction(self):
+        Sensor(self.mdb_filename, 'k').write_value(datetime(2024, 1, 1), 1.0)
+
+        # constructing and reading a sensor must not wait for writers, e.g. other MQTT subscribers
+        with mock.patch.object(manager, 'get_transaction', wraps=manager.get_transaction) as get_transaction:
+            s = Sensor(self.mdb_filename, 'k')
+            self.assertEqual('f', s.data_format)
+            self.assertEqual([1.0], s.values())
+        for call in get_transaction.call_args_list:
+            self.assertFalse(call.kwargs.get('write'), call)
 
     def test_recreate_after_delete(self):
         storage = LMDBSensorStorage(self.mdb_filename)

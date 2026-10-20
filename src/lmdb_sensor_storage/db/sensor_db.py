@@ -53,7 +53,8 @@ class Sensor(TimestampBytesDB):
         if data_format:
             self.data_format = data_format
         else:
-            self.data_format = self._format_db.get_last_value()
+            # format is already stored, thus only select the packer
+            self._set_value_packer(self._format_db.get_last_value())
 
         self._metadata = StringYamlDB(mdb_filename, 'meta_' + sensor_name)
 
@@ -85,6 +86,12 @@ class Sensor(TimestampBytesDB):
 
     @data_format.setter
     def data_format(self, data_format: Union[str, None]):
+        self._set_value_packer(data_format)
+        if data_format is not None:
+            # store backend-selection
+            self._format_db.write_value(datetime.now(), data_format, only_if_value_changed=True)
+
+    def _set_value_packer(self, data_format: Union[str, None]):
 
         if data_format is None:
             self._value_packer = None
@@ -106,8 +113,6 @@ class Sensor(TimestampBytesDB):
         else:
             raise NotImplementedError(f'No backend for data_format {data_format}')
 
-        # store backend-selection
-        self._format_db.write_value(datetime.now(), data_format, only_if_value_changed=True)
         self._data_format = data_format
 
     def __setitem__(self, key: datetime, value):
