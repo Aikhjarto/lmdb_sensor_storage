@@ -4,14 +4,15 @@ Once: 'since', 'until', 'decimate_to_s', 'limit', 'first', 'last'
 Multiple times: sensor_name
 """
 
-import base64
+from collections import OrderedDict
 import datetime
 from html import escape
 import json
+import math
+import secrets
 import socket
 import socketserver
 import urllib.parse
-from random import randint
 import traceback
 from threading import Lock
 from typing import List, Union, Any, Dict
@@ -57,6 +58,13 @@ class MDBServer(socketserver.ThreadingTCPServer):
     # allow IPv4 and IPv6
     address_family = socket.AF_INET6
 
+    # sessions are dropped when unused for SESSION_TIMEOUT, or least recently used ones when exceeding MAX_SESSIONS
+    MAX_SESSIONS = 1000
+    SESSION_TIMEOUT = datetime.timedelta(days=1)
+
+    # upper bound for the number of samples requested via `limit`
+    MAX_LIMIT = 100000
+
     def __init__(self, mdb_filename, *args,
                  wunderground_station_ids=(),
                  wunderground_api_key=None,
@@ -66,7 +74,7 @@ class MDBServer(socketserver.ThreadingTCPServer):
         self.wunderground_station_ids = wunderground_station_ids
         self.wunderground_api_key = wunderground_api_key
         self.group_sensors_regexps = group_sensors_regexps
-        self.sessions = {}
+        self.sessions = OrderedDict()  # ordered by last access
         self.my_lock = Lock()
         super().__init__(*args, **kwargs)
 
@@ -191,6 +199,7 @@ class MDBRequestHandler(HTTPRequestHandler):
 
     def __init__(self, *args, **kwargs):
         self.sid = None
+        self.session = {'query_dict': {}}  # set by update_session
         self.query_dict = {}
 
         super().__init__(*args, **kwargs)
@@ -208,17 +217,21 @@ class MDBRequestHandler(HTTPRequestHandler):
     @staticmethod
     def generate_sid(n: int = 32) -> str:
         """
-        Generate `n` 1-byte random integer and returns the base64 encoded version of the byte-sequence
+        Generate a session id from `n` random bytes.
         """
-        return base64.b64encode(b''.join([randint(0, 254).to_bytes(1, 'big')
-                                          for _ in range(n)])).decode()
+        return secrets.token_urlsafe(n)
 
     def parse_cookies(self, cookie_list='') -> dict:
         if not cookie_list:
             cookie_list = self.headers["Cookie"]
 
         # assumption: no "=" in cookie name
-        return dict([(c.split("=", 1)) for c in cookie_list.split(";")]) if cookie_list else {}
+        cookies = {}
+        for cookie in (cookie_list or '').split(';'):
+            name, sep, value = cookie.strip().partition('=')
+            if sep:
+                cookies[name] = value
+        return cookies
 
     def parse_query(self) -> Union[Exception, Literal[True]]:
         """
@@ -239,10 +252,15 @@ class MDBRequestHandler(HTTPRequestHandler):
             for key in ('decimate_to_s',):  # parse to float
                 if key in self.query_dict:
                     self.query_dict[key] = float(self.query_dict[key][0])
+                    if not (math.isfinite(self.query_dict[key]) and self.query_dict[key] > 0):
+                        raise ValueError(f'{key} must be a positive number')
 
             for key in ('limit',):  # parse to int
                 if key in self.query_dict:
                     self.query_dict[key] = int(self.query_dict[key][0])
+                    if self.query_dict[key] <= 0:
+                        raise ValueError(f'{key} must be positive')
+                    self.query_dict[key] = min(self.query_dict[key], self.server.MAX_LIMIT)
 
             for key in ('include_header',):  # parse to bool
                 if key in self.query_dict:
@@ -258,7 +276,7 @@ class MDBRequestHandler(HTTPRequestHandler):
                                          f'of available sensor names {sensor_names}')
 
             with self.server.my_lock:
-                self.server.sessions[self.sid]['query_dict'].update(self.query_dict)
+                self.session['query_dict'].update(self.query_dict)
 
         except Exception as error:
 
@@ -277,17 +295,31 @@ class MDBRequestHandler(HTTPRequestHandler):
 
     def update_session(self):
 
-        cookies = self.parse_cookies()
-        self.sid = cookies.get('sid')
-        if not self.sid:
-            self.sid = self.generate_sid()
+        sid = self.parse_cookies().get('sid')
+        now = datetime.datetime.now()
+        with self.server.my_lock:
+            sessions = self.server.sessions
 
-        if self.sid not in self.server.sessions:
-            # new session
-            new_session_dict = {'query_dict': {},
-                                'session_start': datetime.datetime.now()}
-            with self.server.my_lock:
-                self.server.sessions[self.sid] = new_session_dict
+            # drop expired sessions and least recently used ones, if there are too many
+            while sessions:
+                oldest_sid, oldest_session = next(iter(sessions.items()))
+                if (len(sessions) >= self.server.MAX_SESSIONS or
+                        now - oldest_session['last_access'] > self.server.SESSION_TIMEOUT):
+                    del sessions[oldest_sid]
+                else:
+                    break
+
+            # only accept session ids generated by the server
+            if sid not in sessions:
+                sid = self.generate_sid()
+                sessions[sid] = {'query_dict': {},
+                                 'session_start': now}
+
+            sessions[sid]['last_access'] = now
+            sessions.move_to_end(sid)
+            self.sid = sid
+            # keep a reference, since the session might be dropped from sessions while handling the request
+            self.session = sessions[sid]
 
     def do_GET(self):
 
@@ -341,7 +373,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.end_headers()
 
             try:
-                include_header = self.server.sessions[self.sid]['query_dict'].get('include_header', False)
+                include_header = self.session['query_dict'].get('include_header', False)
                 self.server.sensor_storage.get_csv(sensor_names,
                                                    self.write_chunked,
                                                    include_header=include_header,
@@ -617,7 +649,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_error(404)
 
     def get_sensor_names_from_session(self) -> List[str]:
-        return self.server.sessions[self.sid]['query_dict'].get('sensor_name', [])
+        return self.session['query_dict'].get('sensor_name', [])
 
     def get_timespan_dict_from_session(self) -> dict:
         """
@@ -625,7 +657,7 @@ class MDBRequestHandler(HTTPRequestHandler):
         """
         kwargs = {}
         for key in ('since', 'until', 'decimate_to_s', 'limit', 'first', 'last'):
-            if key in self.server.sessions[self.sid]['query_dict']:
-                kwargs[key] = self.server.sessions[self.sid]['query_dict'][key]
+            if key in self.session['query_dict']:
+                kwargs[key] = self.session['query_dict'][key]
 
         return kwargs
