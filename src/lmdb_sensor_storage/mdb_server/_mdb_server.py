@@ -6,6 +6,7 @@ Multiple times: sensor_name
 
 import base64
 import datetime
+from html import escape
 import json
 import socket
 import socketserver
@@ -407,7 +408,7 @@ class MDBRequestHandler(HTTPRequestHandler):
                                                 **kwargs)
             except Exception as e:
                 tb = traceback.format_exc()
-                div_plot = f'<div>{e} {tb}</div>'
+                div_plot = f'<div>{escape(f"{e} {tb}")}</div>'
             # update HTML form data
             since = kwargs['since'].isoformat()[:16]
 
@@ -428,10 +429,11 @@ class MDBRequestHandler(HTTPRequestHandler):
             # select sensor form
             options_sensors = []
             for sensor_name in self.server.sensor_storage.keys():
+                sensor_name_html = escape(sensor_name)
                 if not sensor_names or sensor_name in sensor_names:
-                    options_sensors.append(f'<option name="{sensor_name}" selected>{sensor_name}</option>')
+                    options_sensors.append(f'<option name="{sensor_name_html}" selected>{sensor_name_html}</option>')
                 else:
-                    options_sensors.append(f'<option name="{sensor_name}">{sensor_name}</option>')
+                    options_sensors.append(f'<option name="{sensor_name_html}">{sensor_name_html}</option>')
 
             range_select_form = \
                 self.html_range_select_form_template.format(since=since[:16],
@@ -442,7 +444,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             # delete note form
             options = []
             for t_isoformat, val in self.server.sensor_storage.notes.items(since=since, until=until):
-                options.append(f'<option value="{t_isoformat}">{t_isoformat}; {val["short"]}</option>')
+                options.append(f'<option value="{escape(t_isoformat)}">{escape(t_isoformat)}; {escape(val["short"])}</option>')
             delete_note_form = self.html_delete_note_form_template.format(options='\n'.join(options))
 
             # add note form

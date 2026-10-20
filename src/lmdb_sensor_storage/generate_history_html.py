@@ -1,4 +1,5 @@
 import argparse
+from html import escape
 import json
 import logging
 import numpy as np
@@ -65,6 +66,16 @@ template = {'data': {'scatter': [{'marker': {'colorbar': {'outlinewidth': 0, 'ti
                           'title': {'standoff': 15},
                           'zerolinecolor': 'white',
                           'zerolinewidth': 2}}}
+
+
+def plotly_text(s: str) -> str:
+    """Escape a string for plotly text fields, which interpret tags like <a>, <b> or <br>."""
+    return escape(str(s), quote=False)
+
+
+def json_for_script(obj) -> str:
+    """JSON which can be embedded in a <script> element, i.e., cannot close it via '</script>'."""
+    return json.dumps(obj).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
 
 
 def plot_plotly(date, val, plot_min_val=None, plot_max_val=None, unit=None):
@@ -155,7 +166,7 @@ def generate_history_div(mdb_filename,
               'title': False}
 
     if not n_axis:
-        return f'<div>No data in {mdb_filename}</div>'
+        return f'<div>No data in {escape(mdb_filename)}</div>'
 
     # define subplot arrangement
     d = 0.02  # distance in percent between consecutive plots
@@ -211,7 +222,7 @@ def generate_history_div(mdb_filename,
                              'y': values,
                              'yaxis': 'y' + suffix,
                              })
-                data[-1]['name'] = sensor_name
+                data[-1]['name'] = plotly_text(sensor_name)
 
             elif storage[sensor_name].data_format == 'ffff':
                 v = np.asarray(values)
@@ -225,14 +236,14 @@ def generate_history_div(mdb_filename,
                                  'xaxis': 'x' + suffix,
                                  'y': val,
                                  'yaxis': 'y' + suffix,
-                                 'name': f'{sensor_name} {label}',
+                                 'name': plotly_text(f'{sensor_name} {label}'),
                                  'line': {'color': label},
                                  })
 
         meta_dict = storage[sensor_name].metadata.as_dict()
         if meta_dict is not None:
             if 'unit' in meta_dict:
-                layout['yaxis' + suffix]['title'] = {'text': meta_dict['unit']}
+                layout['yaxis' + suffix]['title'] = {'text': plotly_text(meta_dict['unit'])}
                 # layout['yaxis' + suffix]['ticksuffix'] = f' {meta_dict['unit']}
 
             plot_min_val = meta_dict.get('plot_min_val')
@@ -247,7 +258,7 @@ def generate_history_div(mdb_filename,
 
             label = meta_dict.get('label')
             if label and 'name' not in data[-1]:
-                data[-1]['name'] = label
+                data[-1]['name'] = plotly_text(label)
 
         logger.debug('Data appended')
 
@@ -268,7 +279,7 @@ def generate_history_div(mdb_filename,
 
         hovertext = timestamp.isoformat()
         if notes.get('long', ''):
-            hovertext = f'{hovertext}<br>{notes.get("long")}'
+            hovertext = f'{hovertext}<br>{plotly_text(notes.get("long"))}'
 
         # noinspection SpellCheckingInspection
         annotations.append({
@@ -277,7 +288,7 @@ def generate_history_div(mdb_filename,
             "xanchor": 'center',
             "y": 0,
             "yanchor": 'top',
-            "text": notes['short'],
+            "text": plotly_text(notes['short']),
             "showarrow": True,
             "ax": 0,
             "ay": -0.035,
@@ -289,7 +300,7 @@ def generate_history_div(mdb_filename,
     layout['annotations'] = annotations
 
     if include_plotlyjs:
-        script = f'<script src="{include_plotlyjs}"></script>'
+        script = f'<script src="{escape(include_plotlyjs)}"></script>'
     else:
         with open(os.path.join(os.path.dirname(plotly.__file__),
                                'package_data', 'plotly.min.js')) as f:
@@ -307,8 +318,8 @@ def generate_history_div(mdb_filename,
         window.PLOTLYENV=window.PLOTLYENV || {{}};
         if (document.getElementById("{UUID}")) {{
             Plotly.newPlot("{UUID}", 
-                           {json.dumps(data)},
-                           {json.dumps(layout)},
+                           {json_for_script(data)},
+                           {json_for_script(layout)},
                            {{"responsive": true}})
         }};
 </script>

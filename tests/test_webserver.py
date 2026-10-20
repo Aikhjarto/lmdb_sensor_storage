@@ -187,6 +187,18 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(307, req.history[1].status_code)
         self.assertEqual(200, req.status_code)
 
+    def test_html_escaping(self):
+        payload = '</script><img src=x onerror=alert(1)>'
+        s = Sensor(mdb_filename=self.mdb_filename, sensor_name=payload, data_format='f')
+        s.metadata['unit'] = payload
+        s[self.reference_date] = 1
+        Notes(self.mdb_filename).add_note(payload, payload, self.reference_date)
+
+        req = requests.request('GET', f'{self.base_url}/today', timeout=10)
+        self.assertEqual(200, req.status_code)
+        self.assertIn('alert(1)', req.text)
+        self.assertNotIn('<img', req.text)
+
     def test_get_now(self):
         req = requests.request('GET', f'{self.base_url}/now', timeout=1)
         self.assertEqual(307, req.history[0].status_code)
