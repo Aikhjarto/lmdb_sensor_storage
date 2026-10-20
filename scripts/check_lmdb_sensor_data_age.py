@@ -12,7 +12,7 @@ CRITICAL = 2
 UNKNOWN = 3
 
 try:
-    from lmdb_sensor_storage.db.sensor_db import Sensor
+    from lmdb_sensor_storage.db.sensor_db import Sensors
 except ImportError:
     print('UNKNOWN - cannot import lmdb_sensor_storage module')
     exit(UNKNOWN)
@@ -38,7 +38,7 @@ def setup_parser() -> argparse.ArgumentParser:
                         metavar='name')
     
     parser.add_argument('--no-error-if-nan', action='store_true', default=False,
-                        help='Report state critical, when a sensor has not-a-number as last value.')
+                        help='Do not report state critical, when a sensor has not-a-number as last value.')
 
     parser.add_argument('--oldest-of', action='store_true', default=False,
                         help='If given, the oldest entry among all given "--sensor_name name" is checked '
@@ -56,16 +56,16 @@ def main():
     timedelta_warning = abs(timedelta(seconds=float(args.w)))
     timedelta_critical = abs(timedelta(seconds=float(args.c)))
 
-    # ugly hack to correct wrongfully encoded character when using this script with the nagios plugin check_by_ssh
+    # When called via the nagios plugin check_by_ssh, sensor names may arrive in an encoding not matching the locale.
+    # Undecodable bytes are then surrogate-escaped by Python, thus recover the raw bytes and decode them as
+    # UTF-8, or as latin-1 if they are not valid UTF-8.
     sensor_names = []
     for sensor_name in args.sensor_name:
-        tmp = []
-        for char in sensor_name:
-            if ord(char) & 0xdc00:
-                tmp.append(chr(ord(char)-0xdc00))
-            else:
-                tmp.append(char)
-        sensor_names.append(''.join(tmp))
+        raw = os.fsencode(sensor_name)
+        try:
+            sensor_names.append(raw.decode('utf-8'))
+        except UnicodeDecodeError:
+            sensor_names.append(raw.decode('latin-1'))
 
     if timedelta_warning >= timedelta_critical:
         print('UNKNOWN - Warning age must be smaller than critical age')
@@ -79,12 +79,17 @@ def main():
             print(f'UNKNOWN - File {args.mdb_filename} is not readable')
             exit(UNKNOWN)
 
-    timestamp = datetime.min
+    sensors = Sensors(args.mdb_filename)
+    timestamps = []
     sensors_with_nan = []
     for sensor_name in sensor_names:
-        sensor = Sensor(args.mdb_filename, sensor_name)
+        # check before accessing the sensor, which would create it
+        if sensor_name not in sensors:
+            print(f'UNKNOWN - No sensor {sensor_name} in file {args.mdb_filename}')
+            exit(UNKNOWN)
+        sensor = sensors[sensor_name]
 
-        if args.no_error_if_nan:
+        if not args.no_error_if_nan:
             last_value = sensor.get_last_value()
             is_nan = False
             try: 
@@ -102,18 +107,20 @@ def main():
             print(f'UNKNOWN - No data found for sensor {sensor_name} in file {args.mdb_filename}')
             exit(UNKNOWN)
         else:
-            if args.oldest_of:
-                timestamp = min(timestamp, _timestamp)
-            else:
-                timestamp = max(timestamp, _timestamp)
+            timestamps.append(_timestamp)
+
+    if args.oldest_of:
+        timestamp = min(timestamps)
+    else:
+        timestamp = max(timestamps)
 
     # https://assets.nagios.com/downloads/nagioscore/docs/nagioscore/3/en/pluginapi.html
     # noinspection PyPep8Naming
-    SERVICEPERFDATA = f'|age={(datetime.now()-timestamp).seconds}s;' \
-                      f'{timedelta_warning.seconds};{timedelta_critical.seconds}'
-    
-    if not args.no_error_if_nan and sensors_with_nan:
-        print(f'CRITICAL - Sensors with nan: [{", ".join(sensor_names)}{SERVICEPERFDATA}]')
+    SERVICEPERFDATA = f'|age={int((datetime.now()-timestamp).total_seconds())}s;' \
+                      f'{int(timedelta_warning.total_seconds())};{int(timedelta_critical.total_seconds())}'
+
+    if sensors_with_nan:
+        print(f'CRITICAL - Sensors with nan: {", ".join(sensors_with_nan)}{SERVICEPERFDATA}')
         exit(CRITICAL)
 
     # noinspection PyPep8Naming
