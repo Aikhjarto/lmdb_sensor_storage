@@ -7,6 +7,7 @@ import shutil
 import tempfile
 import threading
 import unittest
+from unittest import mock
 import urllib.parse
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
@@ -322,6 +323,19 @@ class UnitTests(unittest.TestCase):
 
         # the time range form keeps seconds, so re-submitting it does not cut off the current minute
         self.assertRegex(req.text, r'id="until" name="until" value="\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d"')
+
+    def test_gzip_only_for_remote_clients(self):
+        headers = {'Accept-Encoding': 'gzip'}
+        for path in ('/json?sensor_name=sensor1', '/plotly.min.js'):
+            with self.subTest(path=path):
+                req = requests.request('GET', f'{self.base_url}{path}', headers=headers, timeout=10)
+                self.assertEqual(200, req.status_code)
+                self.assertNotIn('Content-Encoding', req.headers)
+
+                with mock.patch.object(MDBRequestHandler, 'is_localhost', return_value=False):
+                    req = requests.request('GET', f'{self.base_url}{path}', headers=headers, timeout=10)
+                self.assertEqual(200, req.status_code)
+                self.assertEqual('gzip', req.headers['Content-Encoding'])
 
     def test_html_escaping(self):
         payload = '</script><img src=x onerror=alert(1)>'

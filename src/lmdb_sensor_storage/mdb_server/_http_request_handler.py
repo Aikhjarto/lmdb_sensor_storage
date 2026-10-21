@@ -59,8 +59,7 @@ class HTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         See: https://stackoverflow.com/questions/67359204/how-to-run-python-with-simplehttprequesthandler
         """
 
-        # use gzip compression if browser is not on localhost (gzip will take longer than transfer)
-        use_gzip = 'gzip' in self.headers.get('Accept-Encoding', '').split(', ') and not self.is_localhost()
+        use_gzip = self.use_gzip()
 
         try:
             with open(self.path, 'rb') as f:
@@ -94,7 +93,7 @@ class HTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         Uses `self.send_header` to set 'Transfer-Encoding' and 'Content-Encoding'
         """
         self.send_header('Transfer-Encoding', 'chunked')
-        if 'gzip' in self.headers.get('Accept-Encoding', '').split(', '):
+        if self.use_gzip():
             self.send_header('Content-Encoding', 'gzip')
 
     def write_chunked(self, data: bytes):
@@ -106,7 +105,7 @@ class HTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         After last use of `write_chunked`, `self.end_write_chunked` must be used to flush buffers.
 
         """
-        if 'gzip' in self.headers.get('Accept-Encoding', '').split(', '):
+        if self.use_gzip():
             if not hasattr(self, '_cmp'):
                 # noinspection PyAttributeOutsideInit
                 self._cmp = zlib.compressobj(-1, zlib.DEFLATED, zlib.MAX_WBITS | 16)
@@ -146,6 +145,11 @@ class HTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         elif not self.is_localhost():
             logger.info("%s %s",
                         self.address_string(), format % args)
+
+    def use_gzip(self) -> bool:
+        """Use gzip compression if the client accepts it and is not on localhost, where gzip takes longer than
+        the transfer."""
+        return 'gzip' in self.headers.get('Accept-Encoding', '').split(', ') and not self.is_localhost()
 
     def is_localhost(self):
         # noinspection SpellCheckingInspection
