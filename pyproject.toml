@@ -17,7 +17,10 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
 ]
 dependencies = [
-    "lmdb",
+    # lmdb 2.0.0 to 2.1.1 have no wheels for Python < 3.9 and don't declare that they need Python >= 3.9, so pip
+    # would build one of them, which then fails to import
+    "lmdb<2; python_version < '3.9'",
+    "lmdb; python_version >= '3.9'",
     "numpy>=1.7",
     "plotly>=4.0",
     "urllib3",

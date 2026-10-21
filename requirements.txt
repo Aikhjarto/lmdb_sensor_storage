@@ -1,4 +1,5 @@
-lmdb
+lmdb<2; python_version < '3.9'
+lmdb; python_version >= '3.9'
 numpy>=1.7
 plotly>=4.0
 urllib3
