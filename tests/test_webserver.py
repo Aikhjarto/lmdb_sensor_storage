@@ -337,6 +337,15 @@ class UnitTests(unittest.TestCase):
                 self.assertEqual(200, req.status_code)
                 self.assertEqual('gzip', req.headers['Content-Encoding'])
 
+    def test_request_logging(self):
+        # requests from localhost are only logged with debug level
+        with self.assertLogs('lmdb_sensor_storage.httpd', level='DEBUG') as logs:
+            requests.request('GET', f'{self.base_url}/stat.json', timeout=10)
+        self.assertIn('GET /stat.json', '\n'.join(logs.output))
+
+        with self.assertNoLogs('lmdb_sensor_storage.httpd', level='INFO'):
+            requests.request('GET', f'{self.base_url}/stat.json', timeout=10)
+
     def test_html_escaping(self):
         payload = '</script><img src=x onerror=alert(1)>'
         s = Sensor(mdb_filename=self.mdb_filename, sensor_name=payload, data_format='f')

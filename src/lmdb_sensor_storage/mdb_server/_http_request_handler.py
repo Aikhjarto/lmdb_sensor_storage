@@ -139,7 +139,7 @@ class HTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         Override logging function, since per default every request is printed to stderr
         """
 
-        if logger.level == logging.debug:
+        if logger.isEnabledFor(logging.DEBUG):
             logger.debug("%s %s",
                          self.address_string(), format % args)
         elif not self.is_localhost():
