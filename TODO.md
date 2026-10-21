@@ -1,3 +1,44 @@
+# TODO
+
+## Storage
+* `limit=n` returns n+1 items (`count <= limit` in `TimestampBytesDB._get_timespan`).
+* Slicing `db[a:b]` raises `NotImplementedError`, since the check for the step is inverted; only `db[a:b:x]` works.
+* `iter(db)` raises `TypeError`, since `LMDBDict.__iter__` returns a list instead of an iterator.
+* When `max_dbs` is exceeded, the environment is reopened, which invalidates transactions of other threads, e.g. in
+  the webserver. Open the environment once with a sufficient `max_dbs` instead.
+* Timestamps before 1970 cannot be stored, since keys are unsigned microseconds since epoch. Supporting them requires
+  an order-preserving signed key format, e.g. microseconds + 2**63, which needs a migration of existing files.
+* Stale readers of killed processes are never cleared, which prevents reusing free pages: call `env.reader_check()`
+  when opening an environment.
+
+## Webserver
+* `/json`, `/data` and `/nodered_chart` without `limit` read the whole history; only explicit limits are capped.
+* `/data` appends the traceback to the CSV output on errors, which corrupts it. Errors of `/json` are sent as JSON.
+* `log_message` compares the log level with the function `logging.debug`, so the debug branch is never used.
+* Sensor `<option>` elements use `name=` instead of `value=`.
+* Responses to localhost are gzip-compressed, which only costs CPU time.
+
+## MQTT subscriber
+* History messages with nested dicts, e.g. `"spectrum": {"len": 1, "frequencies": [50], ...}`, store the keys of the
+  dict as string values of a sensor named after the dict, and the values are lost.
+* The pattern for Tasmota topics also matches e.g. `tele/x/SENSORS`, and `.+` in the ESPHome pattern spans topic
+  levels. The stdlib `re` would be sufficient instead of the dependency `regex`.
+* The log message for undecodable Tasmota messages lacks the `f` prefix of its f-string.
+
+## Deployment
+* The systemd units in `src/lmdb_sensor_storage/etc/systemd/system` differ from the installed ones: the MQTT
+  subscriber unit is no template, units lack `User=` and `After=network-online.target`, and the Wunderground unit
+  contains the API key instead of using `EnvironmentFile=`.
+
+## Development
+* No CI. Tests run only with Python 3.13 so far, tox covers 3.7 to 3.13.
+* `requirements.txt` duplicates the dependencies of `pyproject.toml`.
+* Use the SPDX string for the license in `pyproject.toml` when requiring Python >= 3.9.
+* Dead code: `_old_api.py`, `generate_history_plotly`, `plot_plotly`, and the hand-copied plotly template.
+* `LocalMQTTServerMixin.tearDownClass` in `tests/test_mqtt_subscriber.py` raises if mosquitto stopped successfully.
+
+# Ideas
+
 ## Maybe bokeh provides plots with dynamically loaded data
 https://pauliacomi.com/2020/06/07/plotly-v-bokeh.html
 
@@ -16,7 +57,7 @@ https://discourse.bokeh.org/t/very-big-data-plotting/7491/5
 https://notebook.community/DistrictDataLabs/ceb-training/02%20-%20Interactive%20Data%20Visualization%20with%20Bokeh
 
 
-# Grafana
+## Grafana
 How to use lmdb_sensor_storage as Grafana datasource
 
 
