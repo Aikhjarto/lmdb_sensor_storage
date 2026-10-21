@@ -27,6 +27,8 @@ class Manager:
         self.handles = {}  # type: Dict[str, lmdb.Environment]
         self._max_dbs = {}  # type: Dict[str, int]
         self._dbs = {}  # type: Dict[Tuple[str, str], Tuple[lmdb.Environment, lmdb._Database]]
+        # additional arguments for lmdb.open, e.g. sync=False for tests
+        self.env_kwargs = {}
         # guards the dicts above and env.open_db, which must not be called concurrently
         self._lock = threading.RLock()
 
@@ -54,7 +56,7 @@ class Manager:
                                                        map_size=1024 * 1024 * 1024 * 1024,
                                                        subdir=False,
                                                        max_dbs=self._max_dbs[mdb_filename],
-                                                       **kwargs)
+                                                       **{**self.env_kwargs, **kwargs})
             # else:
             #     logger.debug('Reusing handle for database %s', mdb_filename)
             return self.handles[mdb_filename]

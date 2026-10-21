@@ -5,6 +5,9 @@ import tempfile
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
 
+# Don't sync to disk on each commit, which is slow and not needed for tests
+manager.env_kwargs = {'sync': False}
+
 
 # noinspection PyPep8Naming
 class EmptyDatabaseMixin:
