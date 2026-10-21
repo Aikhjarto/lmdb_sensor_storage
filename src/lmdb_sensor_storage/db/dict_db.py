@@ -103,7 +103,10 @@ class LMDBDict(MutableMapping):
         return value
 
     def popitem(self):
-        """Return key/value tuple of last item inserted"""
+        """
+        Remove and return the key/value tuple with the largest key.
+        Unlike dict.popitem, this is not the last inserted item, since keys are stored sorted.
+        """
 
         if len(self) == 0:
             raise KeyError('`popitem(): DB is empty')
@@ -138,21 +141,17 @@ class LMDBDict(MutableMapping):
             return default
 
     def __eq__(self, other):
+        if not isinstance(other, Mapping):
+            return NotImplemented
         if len(self) != len(other):
             return False
         for key, val in self.items():
-            if val != other[key]:
+            try:
+                if val != other[key]:
+                    return False
+            except KeyError:
                 return False
         return True
-
-    def __ne__(self, other):
-        if len(self) != len(other):
-            return True
-        for key, val in self.items():
-            if val != other[key]:
-                return True
-
-        return False
 
     def as_dict(self):
         d = {}

@@ -82,6 +82,10 @@ class TestcaseLMDBDict(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(1, len(db.keys()))
         self.assertEqual(b'3.0', db[b'x'])
 
+        # the item with the largest key, not the last inserted one
+        db[b'w'] = b'1'
+        self.assertEqual((b'x', b'3.0'), db.popitem())
+
     def test_setdefault(self):
         db = LMDBDict(self.mdb_filename, 'source')
         db.setdefault(b'x', b'3.0')
@@ -111,6 +115,11 @@ class TestcaseLMDBDict(EmptyDatabaseMixin, unittest.TestCase):
 
         db2[b'z'] = b'x'
         self.assertNotEqual(db, db2)
+
+        # same number of items, but different keys
+        self.assertNotEqual(db, {b'x': b'3.0', b'w': b'z'})
+        self.assertEqual(db, {b'x': b'3.0', b'y': b'z'})
+        self.assertNotEqual(db, 3)
 
     def test_repr(self):
         db = LMDBDict(self.mdb_filename, 'source')
