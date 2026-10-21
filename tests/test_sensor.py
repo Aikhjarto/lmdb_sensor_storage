@@ -192,7 +192,7 @@ class TestcaseSensorConcurrency(EmptyDatabaseMixin, unittest.TestCase):
             self.assertEqual('f', s.data_format)
             self.assertEqual([1.0], s.values())
         for call in get_transaction.call_args_list:
-            self.assertFalse(call.kwargs.get('write'), call)
+            self.assertFalse(call[1].get('write'), call)
 
     def test_reading_missing_sensor_creates_nothing(self):
         # e.g. a misspelled sensor name

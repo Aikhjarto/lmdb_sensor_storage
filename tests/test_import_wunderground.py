@@ -50,9 +50,9 @@ class TestImportWunderground(EmptyDatabaseMixin, unittest.TestCase):
                 self.assertLogs('lmdb_sensor_storage.wunderground', level='DEBUG') as logs:
             import_wunderground_station(self.mdb_filename, 'XY1', 'secret-key', date='2024-01-02')
 
-        self.assertEqual('secret-key', get.call_args.kwargs['params']['apiKey'])
-        self.assertEqual('20240102', get.call_args.kwargs['params']['date'])
-        self.assertIsNotNone(get.call_args.kwargs['timeout'])
+        self.assertEqual('secret-key', get.call_args[1]['params']['apiKey'])
+        self.assertEqual('20240102', get.call_args[1]['params']['date'])
+        self.assertIsNotNone(get.call_args[1]['timeout'])
         self.assertNotIn('secret-key', '\n'.join(logs.output))
         self.assertEqual(2, len(Sensor(self.mdb_filename, 'wind_gust_XY1')))
 

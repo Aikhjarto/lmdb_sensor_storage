@@ -38,12 +38,7 @@ class LocalMQTTServerMixin:
 
     @classmethod
     def get_client(cls, client_id=None):
-        # some versions of paho-mqtt do not have CallbackAPIVersion, some version require it to be set
-        if hasattr(mqtt, "CallbackAPIVersion"):
-            # noinspection PyArgumentList
-            client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
-        else:
-            client = mqtt.Client(client_id=client_id)
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
         start_time = time.time()
         res = None
         while time.time() < (start_time + 60):

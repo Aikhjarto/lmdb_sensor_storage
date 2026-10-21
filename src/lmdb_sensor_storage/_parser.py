@@ -1,7 +1,6 @@
 import argparse
 import logging
 import logging.handlers
-import numpy as np
 import shlex
 import sys
 import datetime
@@ -125,20 +124,7 @@ def fromisoformat(s):
     datetime.datetime
 
     """
-    if hasattr(datetime.datetime, 'fromisoformat'):
-        return datetime.datetime.fromisoformat(s)
-    else:
-        # python 3.6 des not have built-in fromisoformat
-        # thus, go over datetime64 from numpy
-        tmp = np.datetime64(s).item()
-
-        # TODO: np.datetime64 does not store timezone information, thus switch to differen library
-        # https://numpy.org/devdocs/reference/arrays.datetime.html
-
-        # np.datetime64 can return datetime.date instead of datetime.datetime
-        if type(tmp) is datetime.date:
-            tmp = datetime.datetime.combine(tmp, datetime.time.min)
-        return tmp
+    return datetime.datetime.fromisoformat(s)
 
 
 def as_local_datetime(d) -> datetime.datetime:

@@ -2,7 +2,7 @@ name: lmdb_sensor_storage
 channels:
     - defaults
 dependencies:
-    - python>=3.6
+    - python>=3.7
     - lmdb
     - numpy>=1.7
     - plotly>=4.0
@@ -11,6 +11,7 @@ dependencies:
     - requests
     - regex
     - typing_extensions
-    - conda-forge::paho-mqtt
+    - sortedcontainers
+    - conda-forge::paho-mqtt>=2.0
     - simplejson
 

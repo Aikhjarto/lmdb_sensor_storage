@@ -20,10 +20,12 @@ HTTP-based API to get sensor data, e.g., to visualize using [Grafana](https://gr
 A Nagios/Icinga check plugin for sensor data age is also included.
 
 ## Installation
-To install the latest version use
+Python 3.7 or newer is required. To install the latest version use
 ```
 pip install git+https://github.com/Aikhjarto/lmdb_sensor_storage
 ```
+The version is derived from git tags by [setuptools-scm](https://setuptools-scm.readthedocs.io), e.g. tag `v0.2` for
+version 0.2. Commits after a tag get a development version like `0.3.dev4+g1234abc`.
 
 
 ## Tools
@@ -177,8 +179,12 @@ The webserver shows local time, and CSV and JSON output contain local time with 
     * Keys are group names, values are regular expressions matching sensor names
 
 ## Install Requirements for development
-Python 3.6+ is supported.
-`requirements.txt` for pip and `environment.yml` for conda/mamba are provided.
+Python 3.7+ is supported. Packaging is defined in `pyproject.toml`.
+`requirements.txt` for pip and `environment.yml` for conda/mamba are provided, or install the package in editable mode
+with its dependencies via
+```commandline
+pip install -e .
+```
 
 Run the unittests with
 ```commandline
@@ -197,19 +203,6 @@ cd ~/.pyenv && src/configure && make -C src
 ```
 Install Python versions which are tests by tox:
 ```
-pyenv install -s 3.6 3.7 3.8 3.9 3.10 3.11 3.12
-pyenv local 3.6 3.7 3.8 3.9 3.10 3.11 3.12
-```
-
-For openSUSE Leap 15.5, all dependencies for python3.6 can be installed via zypper
-```bash
-zypper in python3-lmdb \
-    python3-numpy \
-    python3-plotly \
-    python3-urllib3 \
-    python3-paho-mqtt \
-    python3-PyYAML \
-    python3-requests \
-    python3-regex \
-    python3-typing_extensions
+pyenv install -s 3.7 3.8 3.9 3.10 3.11 3.12 3.13
+pyenv local 3.7 3.8 3.9 3.10 3.11 3.12 3.13
 ```
