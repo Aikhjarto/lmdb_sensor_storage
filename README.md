@@ -176,6 +176,10 @@ Tasmota, are interpreted as local time.
 The webserver shows local time, and CSV and JSON output contain local time with offset, e.g.
 `2024-10-27T02:30:00+01:00`, so times during the switch from daylight saving time are unambiguous.
 
+Timestamps before 1970-01-01T00:00:00 UTC cannot be stored, since keys are unsigned integers, which keeps their byte
+order equal to their time order. Writing such a timestamp raises `struct.error`. Supporting them would require another
+key format and a migration of existing files, which is not worth it for sensor data.
+
 ## DB layout
 * One mdb-file for all sensors.
 * Sub-DB:

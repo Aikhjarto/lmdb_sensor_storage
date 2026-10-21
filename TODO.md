@@ -6,8 +6,6 @@
 * `iter(db)` raises `TypeError`, since `LMDBDict.__iter__` returns a list instead of an iterator.
 * When `max_dbs` is exceeded, the environment is reopened, which invalidates transactions of other threads, e.g. in
   the webserver. Open the environment once with a sufficient `max_dbs` instead.
-* Timestamps before 1970 cannot be stored, since keys are unsigned microseconds since epoch. Supporting them requires
-  an order-preserving signed key format, e.g. microseconds + 2**63, which needs a migration of existing files.
 * Stale readers of killed processes are never cleared, which prevents reusing free pages: call `env.reader_check()`
   when opening an environment.
 
