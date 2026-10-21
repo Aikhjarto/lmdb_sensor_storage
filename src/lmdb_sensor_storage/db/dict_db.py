@@ -195,10 +195,6 @@ class LMDBDict(MutableMapping):
             logger.debug(f'Write ({key},{value}) to DB "{self._db_name}"')
             result = txn.put(key_packed, self._value_packer.pack(value))
 
-        # documentation says that sync is done every Transaction.commit, however it does not seem to happen when
-        # mdb_filename is created with said Transaction. Thus sync manually.
-        manager.get_environment(self._mdb_filename).sync()
-
         return result
 
     def __len__(self):

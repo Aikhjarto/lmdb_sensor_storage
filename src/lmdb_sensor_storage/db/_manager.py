@@ -113,6 +113,15 @@ class Manager:
     # interval in seconds to clear stale readers of killed processes
     READER_CHECK_INTERVAL = 3600
 
+    # options for lmdb.open, which can be overridden with env_kwargs
+    ENV_OPTIONS = {
+        # Databases are often larger than RAM, where reading ahead reads mostly pages which are not needed.
+        'readahead': False,
+        # Sync only data pages on commit, but not the meta page. A system crash may undo the last transaction, but
+        # does not corrupt the database. This saves one of the two syncs per commit.
+        'metasync': False,
+    }
+
     def __init__(self):
         self.handles = {}  # type: Dict[str, lmdb.Environment]
         self._max_dbs = {}  # type: Dict[str, int]
@@ -162,11 +171,13 @@ class Manager:
 
     def _open_environment(self, mdb_filename, **kwargs) -> lmdb.Environment:
         logger.debug('Opening database %s with max_dbs=%i', mdb_filename, self._max_dbs[mdb_filename])
-        return lmdb.open(mdb_filename,
-                         map_size=1024 * 1024 * 1024 * 1024,
-                         subdir=False,
-                         max_dbs=self._max_dbs[mdb_filename],
-                         **{**self.env_kwargs, **kwargs})
+        options = {'map_size': 1024 * 1024 * 1024 * 1024,
+                   'subdir': False,
+                   'max_dbs': self._max_dbs[mdb_filename],
+                   **self.ENV_OPTIONS,
+                   **self.env_kwargs,
+                   **kwargs}
+        return lmdb.open(mdb_filename, **options)
 
     def _check_readers(self, mdb_filename, env: lmdb.Environment):
         """

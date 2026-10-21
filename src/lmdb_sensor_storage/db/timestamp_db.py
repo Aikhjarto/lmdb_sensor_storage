@@ -73,10 +73,6 @@ class TimestampBytesDB(LMDBDict):
 
             result = txn.put(self._key_packer.pack(date), value_packed)
 
-        # documentation says that sync is done every Transaction.commit, however it does not seem to happen when
-        # mdb_filename is created with said Transaction. Thus sync manually.
-        manager.get_environment(self._mdb_filename).sync()
-
         return result
 
     def delete_entries(self,

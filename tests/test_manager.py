@@ -88,6 +88,11 @@ class TestManager(EmptyDatabaseMixin, unittest.TestCase):
                 # the transaction is still valid
                 self.assertEqual(b'v', txn.get(b'k'))
 
+    def test_env_options(self):
+        flags = manager.get_environment(self.mdb_filename).flags()
+        self.assertFalse(flags['readahead'])
+        self.assertFalse(flags['metasync'])
+
     def test_stale_readers_are_cleared(self):
         self.create_dbs(1)
         manager.close_all()
