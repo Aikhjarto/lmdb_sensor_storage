@@ -351,6 +351,13 @@ class TestOnMessage(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(['kitchen_BME280_Temperature', 'tele/garage/SENSORS', 'tele/home/garage/SENSOR'],
                          sorted(LMDBSensorStorage(self.mdb_filename).keys()))
 
+    def test_invalid_json_is_logged(self):
+        for topic in ('tele/kitchen/SENSOR', 'heizung/abc/history'):
+            with self.subTest(topic=topic):
+                with self.assertLogs('lmdb_sensor_storage.mqtt_subscriber', level='ERROR') as logs:
+                    self.on_message(topic, '{no json')
+                self.assertIn(f"Cannot decode message on topic '{topic}' as json: b'{{no json'", logs.output[0])
+
     def test_database_errors_are_raised(self):
         # a directory cannot be opened as mdb file
         with self.assertRaises(lmdb.Error):

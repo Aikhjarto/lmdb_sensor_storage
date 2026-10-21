@@ -68,7 +68,7 @@ def _on_message(mqtt_client, userdata, message):
         try:
             data = json.loads(message.payload.decode(), parse_constant=float)
         except json.decoder.JSONDecodeError:
-            logger.error(f'Cannot decode message {message.payload.decode()} as json')
+            logger.error("Cannot decode message on topic '%s' as json: %s", message.topic, message.payload[:100])
             return
 
         dates = [datetime.fromtimestamp(epoch, tz=timezone.utc) for epoch in data['epoch']]
@@ -118,7 +118,7 @@ def _on_message(mqtt_client, userdata, message):
         try:
             data = json.loads(message.payload.decode(), parse_constant=float)
         except json.decoder.JSONDecodeError:
-            logger.error('Cannot decode message {message.payload.decode()} as json')
+            logger.error("Cannot decode message on topic '%s' as json: %s", message.topic, message.payload[:100])
             return
 
         # tasmota sends local time without timezone

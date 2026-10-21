@@ -9,7 +9,6 @@
 ## MQTT subscriber
 * History messages with nested dicts, e.g. `"spectrum": {"len": 1, "frequencies": [50], ...}`, are not implemented;
   they are skipped with a warning.
-* The log message for undecodable Tasmota messages lacks the `f` prefix of its f-string.
 
 ## Deployment
 * The systemd units in `src/lmdb_sensor_storage/etc/systemd/system` differ from the installed ones: the MQTT
