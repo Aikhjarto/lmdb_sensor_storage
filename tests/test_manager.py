@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest import mock
 import lmdb
-from . import EmptyDatabaseMixin
+from . import EmptyDatabaseMixin, assert_no_logs
 from lmdb_sensor_storage import LMDBSensorStorage
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
@@ -43,7 +43,7 @@ class TestManager(EmptyDatabaseMixin, unittest.TestCase):
         manager.close_all()
         # forget max_dbs of the file, as in a new process
         with mock.patch.object(manager, 'DEFAULT_MAXDBS', 8), mock.patch.object(manager, '_max_dbs', {}), \
-                self.assertNoLogs('lmdb_sensor_storage.manager', level='WARNING'):
+                assert_no_logs(self, 'lmdb_sensor_storage.manager', level='WARNING'):
             for i in range(30):
                 manager.get_db(self.mdb_filename, f'db{i}', create=False)
 

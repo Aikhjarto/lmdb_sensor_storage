@@ -15,6 +15,7 @@ from lmdb_sensor_storage.db.sensor_db import Sensor, Notes
 from lmdb_sensor_storage.db.timestamp_db import TimestampBytesDB
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.mdb_server._mdb_server import MDBServer, MDBRequestHandler
+from tests import assert_no_logs
 
 
 class UnitTests(unittest.TestCase):
@@ -344,7 +345,7 @@ class UnitTests(unittest.TestCase):
             requests.request('GET', f'{self.base_url}/stat.json', timeout=10)
         self.assertIn('GET /stat.json', '\n'.join(logs.output))
 
-        with self.assertNoLogs('lmdb_sensor_storage.httpd', level='INFO'):
+        with assert_no_logs(self, 'lmdb_sensor_storage.httpd', level='INFO'):
             requests.request('GET', f'{self.base_url}/stat.json', timeout=10)
 
     def test_streaming_errors(self):

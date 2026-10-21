@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+import logging
 import os
 import shutil
 import tempfile
@@ -28,3 +30,21 @@ class EmptyDatabaseMixin:
     def tearDown(self) -> None:
         manager.close_all()
         shutil.rmtree(self.tempfolder)
+
+
+@contextmanager
+def assert_no_logs(test_case, logger_name: str, level: str):
+    """Like TestCase.assertNoLogs, which needs Python 3.10"""
+    logger = logging.getLogger(logger_name)
+    records = []
+    handler = logging.Handler(level)
+    handler.emit = records.append
+    old_level = logger.level
+    logger.setLevel(level)
+    logger.addHandler(handler)
+    try:
+        yield
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(old_level)
+    test_case.assertEqual([], [record.getMessage() for record in records])
