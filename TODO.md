@@ -4,7 +4,6 @@
 
 ## Webserver
 * `/data` appends the traceback to the CSV output on errors, which corrupts it. Errors of `/json` are sent as JSON.
-* `log_message` compares the log level with the function `logging.debug`, so the debug branch is never used.
 
 ## MQTT subscriber
 * History messages with nested dicts, e.g. `"spectrum": {"len": 1, "frequencies": [50], ...}`, are not implemented;
@@ -20,7 +19,6 @@
 * `requirements.txt` duplicates the dependencies of `pyproject.toml`.
 * Use the SPDX string for the license in `pyproject.toml` when requiring Python >= 3.9.
 * Dead code: `_old_api.py`, `generate_history_plotly`, `plot_plotly`, and the hand-copied plotly template.
-* `LocalMQTTServerMixin.tearDownClass` in `tests/test_mqtt_subscriber.py` raises if mosquitto stopped successfully.
 
 # Ideas
 

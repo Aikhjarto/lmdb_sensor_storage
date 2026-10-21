@@ -74,14 +74,9 @@ class LocalMQTTServerMixin:
     @classmethod
     def tearDownClass(cls):
         cls.mosquitto_process.terminate()
-        stdout = cls.mosquitto_process.stdout.read()
-        stderr = cls.mosquitto_process.stderr.read()
+        stdout, stderr = cls.mosquitto_process.communicate(timeout=10)
         ret = cls.mosquitto_process.returncode
         if ret != 0:
-            print(f'mosquitto stopped\n'
-                  f'stdout={stdout.decode()}\n'
-                  f'stderr={stderr.decode()}\n')
-        else:
             raise RuntimeError(f'mosquitto stopped with error code {ret}\n'
                                f'stdout={stdout.decode()}\n'
                                f'stderr={stderr.decode()}\n')
