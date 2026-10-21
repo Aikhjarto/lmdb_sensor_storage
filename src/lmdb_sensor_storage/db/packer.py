@@ -112,12 +112,13 @@ class FloatPacker(Packer):
 
 
 class IntPacker(Packer):
+    """Signed 64-bit integers"""
 
     def pack(self, x: Union[bytes, str, SupportsInt]) -> bytes:
-        return struct.pack('h', int(x))
+        return struct.pack('q', int(x))
 
     def unpack(self, x: bytes) -> int:
-        return struct.unpack('h', x)[0]
+        return struct.unpack('q', x)[0]
 
 
 class StructPacker(Packer):

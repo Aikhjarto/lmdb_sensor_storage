@@ -21,6 +21,8 @@ class TestcasePacker(unittest.TestCase):
         self.assertEqual(3, p.unpack(p.pack(3)))
         self.assertEqual(3, p.unpack(p.pack("3")))
         self.assertEqual(3, p.unpack(p.pack(b"3")))
+        self.assertEqual(100000, p.unpack(p.pack(100000)))
+        self.assertEqual(-2**40, p.unpack(p.pack(-2**40)))
 
     def testString(self):
         p = StringPacker()
