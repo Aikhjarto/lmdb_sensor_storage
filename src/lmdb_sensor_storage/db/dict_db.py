@@ -36,6 +36,8 @@ class LMDBDict(MutableMapping):
         return self._db_name
 
     def _get_lmdb_stats(self):
+        if not manager.db_exists(self._mdb_filename, self._db_name):
+            return None
         with manager.get_transaction(self._mdb_filename, self._db_name) as txn:
             # noinspection PyArgumentList
             stat = txn.stat()
@@ -238,11 +240,11 @@ class LMDBDict(MutableMapping):
 
         if manager.db_exists(export_mdb_filename, new_db_name):
             raise RuntimeError(f'DB "{new_db_name}" already exists in "{export_mdb_filename}"')
-        else:
+        elif manager.db_exists(self.mdb_filename, self._db_name):  # nothing to copy otherwise
             # Note: all db handles must be genereated befor a transaction is created,
             # thus manager.get_transaction cannot be used here
             db_out = manager.get_db(export_mdb_filename, new_db_name)
-            db_in = manager.get_db(self.mdb_filename, self._db_name)
+            db_in = manager.get_db(self.mdb_filename, self._db_name, create=False)
             with lmdb.Transaction(manager.get_environment(export_mdb_filename), db=db_out, write=True) as txn_out:
                 with lmdb.Transaction(manager.get_environment(self._mdb_filename), db=db_in) as txn_in:
                     for key, val in txn_in.cursor():

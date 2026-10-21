@@ -194,6 +194,29 @@ class TestcaseSensorConcurrency(EmptyDatabaseMixin, unittest.TestCase):
         for call in get_transaction.call_args_list:
             self.assertFalse(call.kwargs.get('write'), call)
 
+    def test_reading_missing_sensor_creates_nothing(self):
+        # e.g. a misspelled sensor name
+        storage = LMDBSensorStorage(self.mdb_filename)
+        db_names = manager.get_db_names(self.mdb_filename)
+        s = Sensor(self.mdb_filename, 'missing')
+        self.assertIsNone(s.data_format)
+        self.assertEqual([], s.values())
+        self.assertEqual([], s.items())
+        self.assertEqual(0, len(s))
+        self.assertEqual({'entries': 0}, s.statistics)
+        self.assertIsNone(s.get_last_value())
+        self.assertIsNone(s.get_last_changed())
+        self.assertEqual({}, s.metadata.as_dict())
+        self.assertEqual(0, len(s.metadata))
+        self.assertEqual([], s.notes.items())
+        self.assertNotIn(datetime.now(timezone.utc), s)
+        self.assertEqual(db_names, manager.get_db_names(self.mdb_filename))
+        self.assertNotIn('missing', storage)
+
+        # writing creates the sensor
+        s.write_value(datetime.now(timezone.utc), 1.0)
+        self.assertIn('missing', storage)
+
     def test_recreate_after_delete(self):
         storage = LMDBSensorStorage(self.mdb_filename)
         Sensor(self.mdb_filename, 'k').write_value(datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0)

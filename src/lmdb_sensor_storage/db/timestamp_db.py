@@ -421,6 +421,8 @@ class TimestampBytesDB(LMDBDict):
     @property
     def statistics(self) -> Dict[str, Union[str, Dict]]:
         d_s = {}
+        if not manager.db_exists(self._mdb_filename, self._db_name):
+            return {'entries': 0}
         with manager.get_transaction(self._mdb_filename, self._db_name) as txn:
             # noinspection PyArgumentList
             stat = txn.stat()

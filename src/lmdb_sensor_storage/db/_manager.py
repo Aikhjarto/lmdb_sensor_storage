@@ -61,7 +61,11 @@ class Manager:
             #     logger.debug('Reusing handle for database %s', mdb_filename)
             return self.handles[mdb_filename]
 
-    def _open_db(self, mdb_filename, db_name):
+    def _open_db(self, mdb_filename, db_name, create=True):
+        """
+        Returns environment and handle of a database. If `create` is False, lmdb.NotFoundError is raised for a
+        database which does not exist, instead of creating it.
+        """
         mdb_filename = os.path.realpath(mdb_filename)
         # Fast path without lock for already opened databases. This avoids waiting for the lock while another thread
         # opens a new database, which requires a write transaction and thus might wait for the writer lock of lmdb.
@@ -72,7 +76,7 @@ class Manager:
             env = self.get_environment(mdb_filename)
             while True:
                 try:
-                    self._dbs[(mdb_filename, db_name)] = env, env.open_db(db_name.encode())
+                    self._dbs[(mdb_filename, db_name)] = env, env.open_db(db_name.encode(), create=create)
                     return self._dbs[(mdb_filename, db_name)]
                 except lmdb.DbsFullError:
                     # reopen with more slots for named databases
@@ -84,23 +88,25 @@ class Manager:
                     self.close(mdb_filename)
                     env = self.get_environment(mdb_filename)
 
-    def get_db(self, mdb_filename, db_name):
+    def get_db(self, mdb_filename, db_name, create=True):
         """
         Parameters
         ----------
         mdb_filename : str
         db_name : str
+        create : bool
+            If False, lmdb.NotFoundError is raised for a database which does not exist, instead of creating it.
 
         Returns
         -------
         lmdb._Database
 
         """
-        env, db = self._open_db(mdb_filename, db_name)
+        env, db = self._open_db(mdb_filename, db_name, create=create)
 
         return db
 
-    def get_transaction(self, mdb_filename, db_name, **kwargs):
+    def get_transaction(self, mdb_filename, db_name, write=False, create=None, **kwargs):
         """
         Thread safe function creating a Transaction handle.
 
@@ -110,15 +116,23 @@ class Manager:
         ----------
         mdb_filename : str
         db_name : str
+        write : bool
+            Transaction for writing
+        create : bool or None
+            Create the database if it does not exist, default is to create it only for writing, so reading e.g. a
+            misspelled sensor does not create empty databases.
+            If the database does not exist and is not created, lmdb.NotFoundError is raised.
 
         Returns
         -------
         txn : lmdb.Transaction
 
         """
-        env, db = self._open_db(mdb_filename, db_name)
+        if create is None:
+            create = write
+        env, db = self._open_db(mdb_filename, db_name, create=create)
 
-        return env.begin(db=db, **kwargs)
+        return env.begin(db=db, write=write, **kwargs)
 
     def db_exists(self, mdb_filename, db_name):
         """
