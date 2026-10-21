@@ -1,14 +1,8 @@
 # TODO
 
-## Storage
-
-## Webserver
-
 ## MQTT subscriber
 * History messages with nested dicts, e.g. `"spectrum": {"len": 1, "frequencies": [50], ...}`, are not implemented;
   they are skipped with a warning.
-
-## Deployment
 
 ## Development
 * Check the results of the CI on GitHub for Python 3.7 to 3.12, which were not tested locally.
