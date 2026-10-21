@@ -84,6 +84,10 @@ Topics are subscribed again on every reconnect to the broker, e.g., after a netw
 Connects and disconnects are logged as warnings.
 Messages which cannot be decoded, or whose values don't match the data format of the sensor, are logged and skipped.
 
+History messages of [ESP32_datalogger](https://github.com/Aikhjarto/ESP32_datalogger) with nested dicts, e.g.
+`"spectrum": {"len": 1, "frequencies": [50], "U1A_current": [[0.028]]}`, are not supported. Such entries are skipped
+with a warning, while the other entries of the message are stored.
+
 When running as systemd service, start it after the network is configured and the broker is running:
 ```ini
 [Unit]

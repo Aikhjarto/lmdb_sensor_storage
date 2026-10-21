@@ -1,15 +1,12 @@
 # TODO
 
 ## Storage
-* `limit=n` returns n+1 items (`count <= limit` in `TimestampBytesDB._get_timespan`).
 * Slicing `db[a:b]` raises `NotImplementedError`, since the check for the step is inverted; only `db[a:b:x]` works.
 * `iter(db)` raises `TypeError`, since `LMDBDict.__iter__` returns a list instead of an iterator.
 
 ## Webserver
 * `/data` appends the traceback to the CSV output on errors, which corrupts it. Errors of `/json` are sent as JSON.
 * `log_message` compares the log level with the function `logging.debug`, so the debug branch is never used.
-* Sensor `<option>` elements use `name=` instead of `value=`.
-* Responses to localhost are gzip-compressed, which only costs CPU time.
 
 ## MQTT subscriber
 * History messages with nested dicts, e.g. `"spectrum": {"len": 1, "frequencies": [50], ...}`, are not implemented;
