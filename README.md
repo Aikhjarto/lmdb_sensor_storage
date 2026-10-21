@@ -110,6 +110,10 @@ Start `lmdb_sensor_storage.mdb_server` and query
 The port defaults to 8001 and can be changed with `--port`.
 `limit` is capped at 100000 samples per request.
 
+`/data` (CSV) and `/json` are streamed. Errors during the first megabyte result in an error response, for `/json` a
+JSON object with the keys `error` and `explain`. Errors later abort the transfer without the end of the chunked
+response, so HTTP clients report an incomplete response instead of returning incomplete data.
+
 ### Webserver security
 The webserver has **no authentication**. Everybody who can reach it can read all sensor data, add samples via
 `/add_sample`, add and delete notes, and trigger downloads of weather data with the configured Wunderground API key.

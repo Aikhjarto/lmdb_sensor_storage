@@ -12,6 +12,7 @@ import urllib.parse
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
 from lmdb_sensor_storage.db.sensor_db import Sensor, Notes
+from lmdb_sensor_storage.db.timestamp_db import TimestampBytesDB
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.mdb_server._mdb_server import MDBServer, MDBRequestHandler
 
@@ -208,9 +209,9 @@ class UnitTests(unittest.TestCase):
 
         requested = {}
 
-        def get_json(sensor_names, **kwargs):
+        def get_json(sensor_names, write, **kwargs):
             requested.update(kwargs)
-            return b'{}'
+            write(b'{}')
         self.server.sensor_storage.get_json = get_json
         self.assertEqual(200, self.get_json(limit=10**9).status_code)
         self.assertEqual(self.server.MAX_LIMIT, requested['limit'])
@@ -345,6 +346,47 @@ class UnitTests(unittest.TestCase):
 
         with self.assertNoLogs('lmdb_sensor_storage.httpd', level='INFO'):
             requests.request('GET', f'{self.base_url}/stat.json', timeout=10)
+
+    def test_streaming_errors(self):
+        def fail_after(n):
+            def generate(sensor_names, write, **kwargs):
+                write(b'x' * n)
+                raise RuntimeError('broken')
+            return generate
+
+        for path, method in (('/json', 'get_json'), ('/data', 'get_csv')):
+            with self.subTest(path=path):
+                # error within the buffered beginning: error response
+                with mock.patch.object(self.server.sensor_storage, method, fail_after(10)):
+                    req = requests.request('GET', f'{self.base_url}{path}', params={'sensor_name': 'sensor1'},
+                                           timeout=10)
+                self.assertEqual(500, req.status_code)
+                if path == '/json':
+                    self.assertEqual('RuntimeError: broken', req.json()['error'])
+
+                # error after the response started: incomplete response
+                with mock.patch.object(self.server.sensor_storage, method, fail_after(100)), \
+                        mock.patch.object(MDBRequestHandler, 'STREAM_BUFFER_SIZE', 10):
+                    with self.assertRaises(requests.exceptions.ChunkedEncodingError):
+                        requests.request('GET', f'{self.base_url}{path}', params={'sensor_name': 'sensor1'},
+                                         timeout=10)
+
+    def test_streaming_larger_than_buffer(self):
+        expected = requests.request('GET', f'{self.base_url}/data', params={'sensor_name': 'sensor1'},
+                                    timeout=10).content
+        with mock.patch.object(MDBRequestHandler, 'STREAM_BUFFER_SIZE', 10):
+            req = requests.request('GET', f'{self.base_url}/data', params={'sensor_name': 'sensor1'}, timeout=10)
+        self.assertEqual(200, req.status_code)
+        self.assertEqual(expected, req.content)
+        self.assertGreater(len(expected), 10)
+
+    def test_sensor_without_format(self):
+        # data without entry in format_, e.g. written by an old version of import_csv
+        TimestampBytesDB(self.mdb_filename, 'data_raw').write_value(self.reference_date, b'1234')
+        for path in ('/json', '/data'):
+            with self.subTest(path=path):
+                req = requests.request('GET', f'{self.base_url}{path}', params={'sensor_name': 'raw'}, timeout=10)
+                self.assertEqual(422, req.status_code)
 
     def test_html_escaping(self):
         payload = '</script><img src=x onerror=alert(1)>'

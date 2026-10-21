@@ -14,7 +14,7 @@ import struct
 import urllib.parse
 import traceback
 from threading import Lock
-from typing import List, Union, Any, Dict
+from typing import Callable, List, Union, Any, Dict
 from typing_extensions import Literal
 import urllib3
 from lmdb_sensor_storage.db.sensor_db import LMDBSensorStorage
@@ -80,6 +80,9 @@ class MDBServer(socketserver.ThreadingTCPServer):
 class MDBRequestHandler(HTTPRequestHandler):
     # maximum size of the body of POST requests
     MAX_BODY_LENGTH = 1024 * 1024
+    # streamed responses are buffered up to this size before sending, so an error within it can be sent as error
+    # response instead of an incomplete response
+    STREAM_BUFFER_SIZE = 1024 * 1024
     # typehints
     query_dict: Dict[str, Any]
     server: MDBServer
@@ -302,47 +305,30 @@ class MDBRequestHandler(HTTPRequestHandler):
                 msg = f'Request "{self.path}" does not have a single sensor_name.'
                 self.send_error_response(422, message=msg)
                 return
-
-            # generate the whole response before sending, so errors can still be sent as error response
-            try:
-                data = self.server.sensor_storage.get_json(sensor_names, **timespan_kwargs)
-            except Exception as error:
-                logger.exception('Request "%s" failed', self.path)
-                self.send_error_response(500, message=f'{type(error).__name__}: {error}',
-                                         explain=traceback.format_exc())
+            if not self.validate_sensors(sensor_names):
                 return
 
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_chunked_header()
-            self.end_headers()
-            self.write_chunked(data)
-            self.end_write_chunked()
+            self.stream_response('application/json',
+                                 lambda write: self.server.sensor_storage.get_json(sensor_names, write,
+                                                                                   **timespan_kwargs))
 
         elif self.path.startswith('/data'):
             # get data (timestamps and values) for a specific time-range
             timestamp_kwargs = self.get_timespan_dict_from_query()
             sensor_names = self.get_sensor_names_from_query()
             if not sensor_names:
-                logger.info('Request "%s" does not have a single sensor_name')
+                logger.info('Request "%s" does not have a single sensor_name', self.path)
                 msg = f'Request "{self.path}" does not have a single sensor_name.'
-                self.send_error(422, message=msg)
+                self.send_error_response(422, message=msg)
+                return
+            if not self.validate_sensors(sensor_names):
                 return
 
-            self.send_response(200)
-            self.send_header("Content-Type", "text/csv")
-            self.send_chunked_header()
-            self.end_headers()
-
-            try:
-                include_header = self.query_dict.get('include_header', False)
-                self.server.sensor_storage.get_csv(sensor_names,
-                                                   self.write_chunked,
-                                                   include_header=include_header,
-                                                   **timestamp_kwargs)
-            except Exception:
-                self.write_chunked(traceback.format_exc().encode())
-            self.end_write_chunked()
+            include_header = self.query_dict.get('include_header', False)
+            self.stream_response('text/csv',
+                                 lambda write: self.server.sensor_storage.get_csv(sensor_names, write,
+                                                                                  include_header=include_header,
+                                                                                  **timestamp_kwargs))
 
         elif self.path.startswith('/nodered_chart'):
             # https://github.com/node-red/node-red-dashboard/blob/master/Charts.md#line-charts-1
@@ -558,6 +544,68 @@ class MDBRequestHandler(HTTPRequestHandler):
         self.end_headers()
         self.close_connection = True
         self.wfile.write(body)
+
+    def validate_sensors(self, sensor_names: List[str]) -> bool:
+        """
+        Check what can be checked before streaming data of sensors, since errors while streaming cannot be sent as
+        error response anymore. If a check fails, an error is sent and False is returned.
+        """
+        for sensor_name in sensor_names:
+            if self.server.sensor_storage[sensor_name].data_format is None:
+                self.send_error_response(422, message=f'Sensor {sensor_name} has no data format, '
+                                                      f'thus its values cannot be decoded')
+                return False
+        return True
+
+    def stream_response(self, content_type: str, generate: Callable[[Callable[[bytes], None]], None]):
+        """
+        Send the data written by `generate` to the function passed to it, as chunked response.
+
+        The first STREAM_BUFFER_SIZE bytes are buffered before sending the response, so an error within them is sent
+        as error response. An error after that closes the connection without the end of the chunked response, so
+        clients detect the incomplete response instead of using it.
+        """
+        buffer = []
+        buffer_size = 0
+        started = False
+
+        def start():
+            nonlocal started
+            started = True
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_chunked_header()
+            self.end_headers()
+            for data in buffer:
+                self.write_chunked(data)
+            buffer.clear()
+
+        def write(data: bytes):
+            nonlocal buffer_size
+            if started:
+                self.write_chunked(data)
+            else:
+                buffer.append(data)
+                buffer_size += len(data)
+                if buffer_size >= self.STREAM_BUFFER_SIZE:
+                    start()
+
+        try:
+            generate(write)
+        except Exception as error:
+            logger.exception('Request "%s" failed', self.path)
+            if not started:
+                self.send_error_response(500, message=f'{type(error).__name__}: {error}',
+                                         explain=traceback.format_exc())
+            else:
+                # abort the response, the missing end of the chunked response tells the client that it is incomplete
+                self.close_connection = True
+                self.wfile.flush()
+            return
+
+        if not started:
+            start()
+        self.end_write_chunked()
 
     def read_body(self) -> Union[str, None]:
         """

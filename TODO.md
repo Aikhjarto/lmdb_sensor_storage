@@ -3,7 +3,6 @@
 ## Storage
 
 ## Webserver
-* `/data` appends the traceback to the CSV output on errors, which corrupts it. Errors of `/json` are sent as JSON.
 
 ## MQTT subscriber
 * History messages with nested dicts, e.g. `"spectrum": {"len": 1, "frequencies": [50], ...}`, are not implemented;
