@@ -149,6 +149,14 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
         # deleting from an empty db does nothing
         del db[:]
 
+    def test_iteration(self):
+        db = TimestampBytesDB(self.mdb_filename, 'i')
+        dates = [datetime(2024, 1, 1, 0, i, tzinfo=timezone.utc) for i in range(3)]
+        for date in dates:
+            db.write_value(date, b'1')
+        self.assertEqual(dates, list(db))
+        self.assertEqual(dates, [key for key in db])
+
     def test_read_does_not_block_writer(self):
         db = TimestampBytesDB(self.mdb_filename, 'r')
         dates = [datetime(2024, 1, 1, 0, i, tzinfo=timezone.utc) for i in range(3)]

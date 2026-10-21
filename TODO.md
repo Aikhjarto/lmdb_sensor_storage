@@ -1,8 +1,6 @@
 # TODO
 
 ## Storage
-* Slicing `db[a:b]` raises `NotImplementedError`, since the check for the step is inverted; only `db[a:b:x]` works.
-* `iter(db)` raises `TypeError`, since `LMDBDict.__iter__` returns a list instead of an iterator.
 
 ## Webserver
 * `/data` appends the traceback to the CSV output on errors, which corrupts it. Errors of `/json` are sent as JSON.

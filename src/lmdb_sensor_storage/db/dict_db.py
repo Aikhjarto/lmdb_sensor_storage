@@ -177,7 +177,7 @@ class LMDBDict(MutableMapping):
         return result
 
     def __iter__(self):
-        return self.keys()
+        return iter(self.keys())
 
     def __setitem__(self, key: bytes, value: bytes):
         key_packed = self._key_packer.pack(key)
