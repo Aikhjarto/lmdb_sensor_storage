@@ -5,7 +5,6 @@ urllib3
 paho-mqtt>=2.0
 PyYAML
 requests
-regex
 typing_extensions
 sortedcontainers
 simplejson

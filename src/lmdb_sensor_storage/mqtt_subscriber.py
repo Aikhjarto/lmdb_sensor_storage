@@ -7,9 +7,9 @@ import argparse
 import lmdb
 import logging
 import os
+import re
 import socket
 from lmdb_sensor_storage._parser import add_logging, setup_logging, add_mqtt, LoadFromFile, as_datetime
-import regex
 
 logger = logging.getLogger('lmdb_sensor_storage.mqtt_subscriber')
 
@@ -18,7 +18,10 @@ logger = logging.getLogger('lmdb_sensor_storage.mqtt_subscriber')
 SESSION_EXPIRY_SECONDS = 24 * 3600
 
 
-re_esphome = regex.compile(r'^.+\/.+\/.+\/state$')
+# <TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMPONENT_NAME>/state, where TOPIC_PREFIX may contain slashes
+re_esphome = re.compile(r'.+/.+/.+/state')
+# tele/<topic>/SENSOR, for the default FullTopic of tasmota only, since sensor names are derived from <topic>
+re_tasmota = re.compile(r'tele/[^/]+/SENSOR')
 
 
 def setup_parser() -> argparse.ArgumentParser:
@@ -98,7 +101,7 @@ def _on_message(mqtt_client, userdata, message):
         data = message.payload.decode()
         s.write_value(date, data, **userdata['write_value_kwargs'])
 
-    elif regex.match(r'tele\/.+\/SENSOR', message.topic):
+    elif re_tasmota.fullmatch(message.topic):
         # tasmaota sensor data, see https://tasmota.github.io/docs/MQTT/#examples
         # tele/tasmota_B56CA8/SENSOR
         # {"Time": "2022-12-13T16:45:52",

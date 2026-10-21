@@ -9,7 +9,6 @@ dependencies:
     - urllib3
     - PyYAML
     - requests
-    - regex
     - typing_extensions
     - sortedcontainers
     - conda-forge::paho-mqtt>=2.0

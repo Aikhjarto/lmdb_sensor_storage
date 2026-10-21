@@ -341,6 +341,16 @@ class TestOnMessage(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(['Current Sensors Temperature'], storage.keys())
         self.assertEqual([27.75], storage['Current Sensors Temperature'].values())
 
+    def test_tasmota_topics(self):
+        payload = '{"Time": "2024-01-01T00:00:00", "BME280": {"Temperature": 23.6}}'
+        self.on_message('tele/kitchen/SENSOR', payload)
+        # topics of other structures are not handled as tasmota messages, since all devices with the same second level
+        # would get the same sensor names
+        self.on_message('tele/home/garage/SENSOR', payload)
+        self.on_message('tele/garage/SENSORS', payload)
+        self.assertEqual(['kitchen_BME280_Temperature', 'tele/garage/SENSORS', 'tele/home/garage/SENSOR'],
+                         sorted(LMDBSensorStorage(self.mdb_filename).keys()))
+
     def test_database_errors_are_raised(self):
         # a directory cannot be opened as mdb file
         with self.assertRaises(lmdb.Error):
