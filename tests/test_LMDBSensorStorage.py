@@ -89,6 +89,10 @@ class TestcaseLMDBSensorStorageGetJSON(DataMixin, unittest.TestCase):
     def setUp(self):
         super().setUp()
 
+    def test_get_json_missing_sensor(self):
+        with self.assertRaises(KeyError):
+            self.db.get_json(['s1', 's0'])
+
     def test_get_json(self):
 
         # test without limits
@@ -169,10 +173,11 @@ class TestcaseLMDBSensorStorageGetCSV(DataMixin, unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-    def get_csv_empty(self):
-        db = LMDBSensorStorage(self.mdb_filename)
+    def test_get_csv_missing_sensor(self):
         with self.assertRaises(KeyError):
-            db.get_csv('s0')
+            self.db.get_csv(['s0'])
+        with self.assertRaises(KeyError):
+            self.db.get_csv(['s1', 's0'])
 
     def test_get_csv_with_float(self):
         # test without limits and without header

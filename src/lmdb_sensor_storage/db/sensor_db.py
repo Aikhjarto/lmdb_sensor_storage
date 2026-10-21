@@ -319,6 +319,13 @@ class LMDBSensorStorage(Sensors):
             data.append(tmp)
         return {'series': series, 'data': data, 'labels': [""]}
 
+    def _check_sensor_names(self, sensor_names: Iterable[str]):
+        """Raise KeyError, if a sensor does not exist, e.g. because of a misspelled name."""
+        existing = set(self.keys())
+        missing = [name for name in sensor_names if name not in existing]
+        if missing:
+            raise KeyError(f'Sensors {missing} do not exist in {self._mdb_filename}')
+
     def _get_common_keys(self, sensor_names: Iterable[str], **timespan_kwargs):
         keys = SortedSet()
         for sensor_name in sensor_names:
@@ -335,6 +342,7 @@ class LMDBSensorStorage(Sensors):
             buffer.seek(0)
             return buffer.read()
         else:
+            self._check_sensor_names(sensor_names)
             sensors = [self[s] for s in sensor_names]
             if include_header:
                 tmp = ['"Time"',]
@@ -378,6 +386,7 @@ class LMDBSensorStorage(Sensors):
             buffer.seek(0)
             return buffer.read()
         else:
+            self._check_sensor_names(sensor_names)
             keys = self._get_common_keys(sensor_names, **timespan_kwargs)
     
             buffer_function('{"Time":['.encode())
