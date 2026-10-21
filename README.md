@@ -230,6 +230,8 @@ python3 -m unittest discover -s tests -t .
 ```
 The MQTT tests start their own `mosquitto` broker on port 1884, thus `mosquitto` must be installed.
 
+GitHub Actions runs the tests for Python 3.7 to 3.13, see `.github/workflows/tests.yml`.
+
 Parallel running unittests for different version of `Python` via tox 4.11 are supported via `tox.ini`.
 One way to get different python versions, which is supported by `tox`, is to use 
 [pyenv](https://github.com/pyenv/pyenv).

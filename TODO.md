@@ -14,7 +14,7 @@
   contains the API key instead of using `EnvironmentFile=`.
 
 ## Development
-* No CI. Tests run only with Python 3.13 so far, tox covers 3.7 to 3.13.
+* Check the results of the CI on GitHub for Python 3.7 to 3.12, which were not tested locally.
 * `requirements.txt` duplicates the dependencies of `pyproject.toml`.
 * Use the SPDX string for the license in `pyproject.toml` when requiring Python >= 3.9.
 * Dead code: `generate_history_plotly`, `plot_plotly`, and the hand-copied plotly template.
