@@ -192,7 +192,7 @@ def generate_history_div(mdb_filename,
 
     if 'keep_local_extrema' in kwargs:
         del kwargs['keep_local_extrema']
-        timestamp_chunker = timestamp_chunker_minmeanmax,
+        timestamp_chunker = timestamp_chunker_minmeanmax
         value_chunker = value_chunker_minmeanmax
     else:
         timestamp_chunker = timestamp_chunker_center
