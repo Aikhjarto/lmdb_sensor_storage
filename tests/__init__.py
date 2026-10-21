@@ -1,6 +1,12 @@
 import os
 import shutil
 import tempfile
+import time
+
+# Run tests in a fixed timezone with daylight saving time, so results don't depend on the timezone of the machine.
+# Must be set before datetime objects are converted to local time. Subprocesses inherit it.
+os.environ['TZ'] = 'Europe/Vienna'
+time.tzset()
 
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
