@@ -25,7 +25,6 @@ dependencies = [
     "PyYAML",
     "requests",
     "typing_extensions",
-    "sortedcontainers",
     "simplejson",
 ]
 dynamic = ["version"]

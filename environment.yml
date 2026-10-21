@@ -10,7 +10,6 @@ dependencies:
     - PyYAML
     - requests
     - typing_extensions
-    - sortedcontainers
     - conda-forge::paho-mqtt>=2.0
     - simplejson
 
