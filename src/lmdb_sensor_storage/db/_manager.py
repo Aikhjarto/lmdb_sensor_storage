@@ -1,11 +1,95 @@
 import logging
 import os
 import threading
+import time
 from typing import Dict, List, Tuple
 import lmdb
 
 
 logger = logging.getLogger('lmdb_sensor_storage.manager')
+
+
+class _ReopenLock:
+    """
+    Readers-writer lock, which is held shared by transactions and exclusively when reopening an environment, which
+    invalidates all its transactions.
+    A thread may acquire it shared several times, also while another thread waits for exclusive access.
+    """
+
+    def __init__(self):
+        self._condition = threading.Condition()
+        self._shared = 0
+        self._exclusive = False
+        self._local = threading.local()
+
+    def _own_shared(self) -> int:
+        return getattr(self._local, 'count', 0)
+
+    def acquire_shared(self):
+        with self._condition:
+            # nested transactions of a thread must not wait, since the thread would wait for itself
+            while self._exclusive and not self._own_shared():
+                self._condition.wait()
+            self._shared += 1
+        self._local.count = self._own_shared() + 1
+
+    def release_shared(self):
+        self._local.count = self._own_shared() - 1
+        with self._condition:
+            self._shared -= 1
+            self._condition.notify_all()
+
+    def acquire_exclusive(self, timeout: float) -> bool:
+        """
+        Wait until no other transaction is active. Returns False, if the current thread has an active transaction or
+        if other transactions did not finish within `timeout` seconds.
+        """
+        if self._own_shared():
+            return False
+        with self._condition:
+            while self._exclusive:  # another thread reopens
+                self._condition.wait()
+            # block new transactions while waiting for active ones
+            self._exclusive = True
+            if not self._condition.wait_for(lambda: self._shared == 0, timeout):
+                self._exclusive = False
+                self._condition.notify_all()
+                return False
+            return True
+
+    def release_exclusive(self):
+        with self._condition:
+            self._exclusive = False
+            self._condition.notify_all()
+
+
+class _Transaction:
+    """Wraps an lmdb.Transaction to hold the _ReopenLock shared until the transaction ends."""
+
+    def __init__(self, txn: lmdb.Transaction, lock: _ReopenLock):
+        self._txn = txn
+        self._lock = lock
+        self._released = False
+
+    def _release(self):
+        if not self._released:
+            self._released = True
+            self._lock.release_shared()
+
+    def __enter__(self) -> lmdb.Transaction:
+        return self._txn.__enter__()
+
+    def __exit__(self, *exc_info):
+        try:
+            return self._txn.__exit__(*exc_info)
+        finally:
+            self._release()
+
+    def __getattr__(self, name):
+        return getattr(self._txn, name)
+
+    def __del__(self):
+        self._release()
 
 
 class Manager:
@@ -23,14 +107,23 @@ class Manager:
     DEFAULT_MAXDBS = 1024
     MAX_DBS_STEP = 1024
 
+    # maximum time to wait for other transactions to finish, before the environment is reopened
+    REOPEN_TIMEOUT = 10
+
+    # interval in seconds to clear stale readers of killed processes
+    READER_CHECK_INTERVAL = 3600
+
     def __init__(self):
         self.handles = {}  # type: Dict[str, lmdb.Environment]
         self._max_dbs = {}  # type: Dict[str, int]
         self._dbs = {}  # type: Dict[Tuple[str, str], Tuple[lmdb.Environment, lmdb._Database]]
         # additional arguments for lmdb.open, e.g. sync=False for tests
         self.env_kwargs = {}
+        self._last_reader_check = {}  # type: Dict[str, float]
         # guards the dicts above and env.open_db, which must not be called concurrently
         self._lock = threading.RLock()
+        # held by transactions, which become invalid when their environment is reopened
+        self._reopen_lock = _ReopenLock()
 
     def get_environment(self, mdb_filename, **kwargs):
         """
@@ -45,21 +138,45 @@ class Manager:
         env : lmdb.Environment
         """
         mdb_filename = os.path.realpath(mdb_filename)
+        env = self.handles.get(mdb_filename)
+        if env is not None:
+            return env
         with self._lock:
             if mdb_filename not in self._max_dbs:
                 self._max_dbs[mdb_filename] = self.DEFAULT_MAXDBS
 
             if mdb_filename not in self.handles:
-                logger.debug('Opening database %s with max_dbs=%i',
-                             mdb_filename, self._max_dbs[mdb_filename])
-                self.handles[mdb_filename] = lmdb.open(mdb_filename,
-                                                       map_size=1024 * 1024 * 1024 * 1024,
-                                                       subdir=False,
-                                                       max_dbs=self._max_dbs[mdb_filename],
-                                                       **{**self.env_kwargs, **kwargs})
-            # else:
-            #     logger.debug('Reusing handle for database %s', mdb_filename)
+                env = self._open_environment(mdb_filename, **kwargs)
+
+                # Size max_dbs for the databases in the file, so reopening because of exceeding it, which invalidates
+                # all transactions, is rarely needed.
+                required_max_dbs = 2 * env.stat()['entries']
+                if required_max_dbs > self._max_dbs[mdb_filename]:
+                    env.close()
+                    self._max_dbs[mdb_filename] = required_max_dbs
+                    env = self._open_environment(mdb_filename, **kwargs)
+
+                self._check_readers(mdb_filename, env)
+                self.handles[mdb_filename] = env
             return self.handles[mdb_filename]
+
+    def _open_environment(self, mdb_filename, **kwargs) -> lmdb.Environment:
+        logger.debug('Opening database %s with max_dbs=%i', mdb_filename, self._max_dbs[mdb_filename])
+        return lmdb.open(mdb_filename,
+                         map_size=1024 * 1024 * 1024 * 1024,
+                         subdir=False,
+                         max_dbs=self._max_dbs[mdb_filename],
+                         **{**self.env_kwargs, **kwargs})
+
+    def _check_readers(self, mdb_filename, env: lmdb.Environment):
+        """
+        Clear reader slots of processes, which were killed during a read transaction. Such stale readers prevent
+        lmdb from reusing pages freed after their snapshot, so the file grows.
+        """
+        self._last_reader_check[mdb_filename] = time.monotonic()
+        cleared = env.reader_check()
+        if cleared:
+            logger.warning('Cleared %i stale readers of %s', cleared, mdb_filename)
 
     def _open_db(self, mdb_filename, db_name, create=True):
         """
@@ -79,14 +196,21 @@ class Manager:
                     self._dbs[(mdb_filename, db_name)] = env, env.open_db(db_name.encode(), create=create)
                     return self._dbs[(mdb_filename, db_name)]
                 except lmdb.DbsFullError:
-                    # reopen with more slots for named databases
-                    # Note: transactions of other threads on the closed environment become invalid
-                    logger.warning('Reopening %s since max_dbs=%i is exceeded',
-                                   mdb_filename, self._max_dbs[mdb_filename])
-                    self._max_dbs[mdb_filename] = env.stat()['entries'] + self.MAX_DBS_STEP
-                    del env
-                    self.close(mdb_filename)
-                    env = self.get_environment(mdb_filename)
+                    # Reopen with more slots for named databases. Since this invalidates all transactions of the
+                    # environment, wait until no transaction is active.
+                    if not self._reopen_lock.acquire_exclusive(self.REOPEN_TIMEOUT):
+                        logger.error('Cannot reopen %s to increase max_dbs=%i, since transactions are active',
+                                     mdb_filename, self._max_dbs[mdb_filename])
+                        raise
+                    try:
+                        logger.warning('Reopening %s since max_dbs=%i is exceeded',
+                                       mdb_filename, self._max_dbs[mdb_filename])
+                        self._max_dbs[mdb_filename] = env.stat()['entries'] + self.MAX_DBS_STEP
+                        del env
+                        self.close(mdb_filename)
+                        env = self.get_environment(mdb_filename)
+                    finally:
+                        self._reopen_lock.release_exclusive()
 
     def get_db(self, mdb_filename, db_name, create=True):
         """
@@ -130,9 +254,36 @@ class Manager:
         """
         if create is None:
             create = write
-        env, db = self._open_db(mdb_filename, db_name, create=create)
+        while True:
+            env, db = self._open_db(mdb_filename, db_name, create=create)
+            txn = self._begin(mdb_filename, env, db=db, write=write, **kwargs)
+            if txn is not None:
+                return txn
 
-        return env.begin(db=db, write=write, **kwargs)
+    def begin(self, mdb_filename, **kwargs):
+        """
+        Like lmdb.Environment.begin, but the environment is not reopened while the transaction is active.
+        Database handles in `kwargs` must be obtained by `get_db` before.
+        """
+        while True:
+            txn = self._begin(mdb_filename, self.get_environment(mdb_filename), **kwargs)
+            if txn is not None:
+                return txn
+
+    def _begin(self, mdb_filename, env: lmdb.Environment, **kwargs):
+        """Returns a transaction of `env`, or None, if `env` was reopened meanwhile."""
+        mdb_filename = os.path.realpath(mdb_filename)
+        self._reopen_lock.acquire_shared()
+        try:
+            if self.handles.get(mdb_filename) is not env:
+                self._reopen_lock.release_shared()
+                return None
+            if time.monotonic() - self._last_reader_check.get(mdb_filename, 0) > self.READER_CHECK_INTERVAL:
+                self._check_readers(mdb_filename, env)
+            return _Transaction(env.begin(**kwargs), self._reopen_lock)
+        except BaseException:
+            self._reopen_lock.release_shared()
+            raise
 
     def db_exists(self, mdb_filename, db_name):
         """
@@ -150,7 +301,7 @@ class Manager:
             True, if database exists in file, False otherwise.
         """
 
-        with self.get_environment(mdb_filename).begin() as txn:
+        with self.begin(mdb_filename) as txn:
             if txn.get(db_name.encode()) is None:
                 logger.info('Requested db %s does not exist in %s',
                             db_name, mdb_filename)
@@ -160,15 +311,15 @@ class Manager:
     def delete_db(self, mdb_filename, db_name):
         if self.db_exists(mdb_filename, db_name):
             logger.info('deleting db %s from %s', db_name, mdb_filename)
-            e, db = self._open_db(mdb_filename, db_name)
+            db = self.get_db(mdb_filename, db_name)
             with self._lock:
                 self._dbs.pop((os.path.realpath(mdb_filename), db_name), None)
-            with e.begin(db=db, write=True) as txn:
+            with self.begin(mdb_filename, db=db, write=True) as txn:
                 txn.drop(db=db)
 
     def get_db_names(self, mdb_filename: str) -> List[str]:
         dbs = []
-        with self.get_environment(mdb_filename).begin() as txn:
+        with self.begin(mdb_filename) as txn:
             for key, val in txn.cursor():
                 dbs.append(key.decode())
         return dbs

@@ -244,8 +244,8 @@ class LMDBDict(MutableMapping):
             # thus manager.get_transaction cannot be used here
             db_out = manager.get_db(export_mdb_filename, new_db_name)
             db_in = manager.get_db(self.mdb_filename, self._db_name, create=False)
-            with lmdb.Transaction(manager.get_environment(export_mdb_filename), db=db_out, write=True) as txn_out:
-                with lmdb.Transaction(manager.get_environment(self._mdb_filename), db=db_in) as txn_in:
+            with manager.begin(export_mdb_filename, db=db_out, write=True) as txn_out:
+                with manager.begin(self._mdb_filename, db=db_in) as txn_in:
                     for key, val in txn_in.cursor():
                         txn_out.put(key, val, db=db_out)
 

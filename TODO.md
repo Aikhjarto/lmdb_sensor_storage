@@ -4,10 +4,6 @@
 * `limit=n` returns n+1 items (`count <= limit` in `TimestampBytesDB._get_timespan`).
 * Slicing `db[a:b]` raises `NotImplementedError`, since the check for the step is inverted; only `db[a:b:x]` works.
 * `iter(db)` raises `TypeError`, since `LMDBDict.__iter__` returns a list instead of an iterator.
-* When `max_dbs` is exceeded, the environment is reopened, which invalidates transactions of other threads, e.g. in
-  the webserver. Open the environment once with a sufficient `max_dbs` instead.
-* Stale readers of killed processes are never cleared, which prevents reusing free pages: call `env.reader_check()`
-  when opening an environment.
 
 ## Webserver
 * `/data` appends the traceback to the CSV output on errors, which corrupts it. Errors of `/json` are sent as JSON.

@@ -201,18 +201,19 @@ class Sensors(Mapping):
         return self._mdb_filename
 
     def _get(self, what: Literal['values', 'keys', 'items'] = 'keys'):
-        with manager.get_environment(self._mdb_filename).begin() as txn:
-            for key, val in txn.cursor():
-                key_str = key.decode()
-                if key_str.startswith('data_'):
-                    if what == 'values':
-                        yield Sensor(self._mdb_filename, key_str[5:])
-                    elif what == 'keys':
-                        yield key_str[5:]
-                    elif what == 'items':
-                        yield key_str[5:], Sensor(self._mdb_filename, key_str[5:])
-                    else:
-                        raise NotImplementedError
+        # Note: get the names before creating Sensor objects, which open databases, since opening databases might
+        # require to reopen the environment, which is not possible while a transaction is active
+        with manager.begin(self._mdb_filename) as txn:
+            names = [key.decode()[5:] for key, val in txn.cursor() if key.startswith(b'data_')]
+        for name in names:
+            if what == 'values':
+                yield Sensor(self._mdb_filename, name)
+            elif what == 'keys':
+                yield name
+            elif what == 'items':
+                yield name, Sensor(self._mdb_filename, name)
+            else:
+                raise NotImplementedError
 
     def __getitem__(self, name: str) -> Sensor:
         if not isinstance(name, str):
