@@ -54,7 +54,7 @@ class MDBServer(socketserver.ThreadingTCPServer):
     # Assumption is, that no other process will start listening on `port` during restart of this script
     allow_reuse_address = True
 
-    # allow IPv4 and IPv6
+    # allow IPv4 and IPv6, if no specific address is given
     address_family = socket.AF_INET6
 
     # upper bound for the number of samples requested via `limit`
@@ -70,6 +70,10 @@ class MDBServer(socketserver.ThreadingTCPServer):
         self.wunderground_api_key = wunderground_api_key
         self.group_sensors_regexps = group_sensors_regexps
         self.my_lock = Lock()
+        # the address family must match the address to listen on, e.g. IPv4 for 127.0.0.1
+        host, port = args[0][:2]
+        if host:
+            self.address_family = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)[0][0]
         super().__init__(*args, **kwargs)
 
 

@@ -106,8 +106,30 @@ Start `lmdb_sensor_storage.mdb_server` and query
 The port defaults to 8001 and can be changed with `--port`.
 `limit` is capped at 100000 samples per request.
 
-Note: the webserver has no authentication and allows adding samples and notes via HTTP POST.
-Don't expose it to untrusted networks, or put it behind a reverse proxy with authentication.
+### Webserver security
+The webserver has **no authentication**. Everybody who can reach it can read all sensor data, add samples via
+`/add_sample`, add and delete notes, and trigger downloads of weather data with the configured Wunderground API key.
+
+By default, it listens on all network interfaces (IPv4 and IPv6). Use `--listen-address` to restrict this, e.g.
+`--listen-address 127.0.0.1` to accept only local connections.
+
+If the webserver must be reachable from other hosts, a reverse proxy with authentication and TLS is advised, with the
+webserver listening on `127.0.0.1` only. Example for nginx with HTTP basic authentication, where the password file is
+created with `htpasswd -c /etc/nginx/lmdb_sensor_storage.htpasswd <user>`:
+```nginx
+server {
+    listen 443 ssl;
+    server_name sensors.example.lan;
+    ssl_certificate     /etc/nginx/ssl/sensors.crt;
+    ssl_certificate_key /etc/nginx/ssl/sensors.key;
+
+    location / {
+        auth_basic "Sensor data";
+        auth_basic_user_file /etc/nginx/lmdb_sensor_storage.htpasswd;
+        proxy_pass http://127.0.0.1:8001;
+    }
+}
+```
 
 ## Project structure
 

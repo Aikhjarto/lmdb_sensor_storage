@@ -405,5 +405,43 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(ref, j)
 
 
+
+class TestListenAddress(unittest.TestCase):
+
+    def setUp(self):
+        self.tempfolder = tempfile.mkdtemp()
+        self.mdb_filename = os.path.join(self.tempfolder, 'unittest.mdb')
+
+    def tearDown(self):
+        manager.close_all()
+        shutil.rmtree(self.tempfolder)
+
+    def get_status(self, url):
+        try:
+            return requests.request('GET', url, timeout=10).status_code
+        except requests.ConnectionError:
+            return None
+
+    def test_listen_address(self):
+        # address to listen on, URL host which must be reachable, URL host which must not be reachable
+        for address, reachable, unreachable in (('127.0.0.1', '127.0.0.1', '[::1]'),
+                                                ('::1', '[::1]', '127.0.0.1'),
+                                                ('', '127.0.0.1', None),
+                                                ('', '[::1]', None)):
+            with self.subTest(address=address, reachable=reachable):
+                server = MDBServer(self.mdb_filename, (address, 0), MDBRequestHandler)
+                thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': 0.05}, daemon=True)
+                thread.start()
+                try:
+                    port = server.server_address[1]
+                    self.assertEqual(200, self.get_status(f'http://{reachable}:{port}/stat.json'))
+                    if unreachable:
+                        self.assertIsNone(self.get_status(f'http://{unreachable}:{port}/stat.json'))
+                finally:
+                    server.shutdown()
+                    server.server_close()
+                    thread.join()
+
+
 if __name__ == '__main__':
     unittest.main()

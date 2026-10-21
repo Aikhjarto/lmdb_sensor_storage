@@ -20,6 +20,10 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument('--port', type=int, default=8001)
 
+    parser.add_argument('--listen-address', type=str, default='',
+                        help='Address or hostname to listen on, e.g. 127.0.0.1 or localhost to accept only local '
+                             'connections. Default is all interfaces, IPv4 and IPv6.')
+
     parser.add_argument('--wunderground-station-id', type=str, action='append', dest='wunderground_station_ids',)
 
     parser.add_argument('--wunderground-api-key', type=str)
@@ -31,11 +35,11 @@ def setup_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def start_db_viewer(mdb_filename, port=8000, **kwargs):
-    logger.info('Start DB-viewer HTTP server on port %s', port)
+def start_db_viewer(mdb_filename, port=8000, listen_address='', **kwargs):
+    logger.info('Start DB-viewer HTTP server on %s port %s', listen_address or 'all interfaces', port)
 
     # start server
-    with MDBServer(mdb_filename, ("", port), MDBRequestHandler, **kwargs) as httpd:
+    with MDBServer(mdb_filename, (listen_address, port), MDBRequestHandler, **kwargs) as httpd:
         httpd.serve_forever()
 
 
