@@ -10,7 +10,6 @@
   when opening an environment.
 
 ## Webserver
-* `/json`, `/data` and `/nodered_chart` without `limit` read the whole history; only explicit limits are capped.
 * `/data` appends the traceback to the CSV output on errors, which corrupts it. Errors of `/json` are sent as JSON.
 * `log_message` compares the log level with the function `logging.debug`, so the debug branch is never used.
 * Sensor `<option>` elements use `name=` instead of `value=`.
