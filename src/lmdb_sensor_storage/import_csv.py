@@ -2,10 +2,8 @@ import argparse
 import csv
 from datetime import datetime
 import logging
-import struct
 from lmdb_sensor_storage._parser import add_logging, setup_logging, fromisoformat
-# noinspection PyProtectedMember
-from lmdb_sensor_storage.db._manager import manager
+from lmdb_sensor_storage.db.sensor_db import Sensor
 
 logger = logging.getLogger('lmdb_sensor_storage')
 
@@ -13,8 +11,8 @@ logger = logging.getLogger('lmdb_sensor_storage')
 def read_csv(csv_filename='export.csv', since=None, until=None,
              datetime_column=0, data_column=2):
     """
-    Reading a CSV file produced by this module and simultaneously down sample for future plotting.
-    This allows to generate low-resolution plot of data that would not fit in memory as a whole.
+    Read timestamps and values from a CSV file without header, with timestamps in ISO format in one column and
+    scalar values in another column. Rows are expected to be sorted by timestamp.
 
     Parameters
     ----------
@@ -30,7 +28,7 @@ def read_csv(csv_filename='export.csv', since=None, until=None,
     Returns
     -------
     status : bool
-        True if `limit` was not reached, False otherwise.
+        Always True.
 
     date : list[datetime]
         List of datetime objects
@@ -60,11 +58,11 @@ def read_csv(csv_filename='export.csv', since=None, until=None,
         # simpler and faster loop for reading without decimation
         for row in reader:
             row_date = fromisoformat(row[datetime_column])
+            if until is not None and row_date > until:
+                break
             if since is None or since <= row_date:
                 dates.append(row_date)
                 values.append(float(row[data_column]))
-            if until is not None and row_date > until:
-                break
 
     logger.info('read %d data points from %s', len(dates), csv_filename)
 
@@ -77,7 +75,7 @@ def setup_parser() -> argparse.ArgumentParser:
 
     parser.add_argument('--csv-filename', type=str, required=True)
     parser.add_argument('--mdb-filename', type=str, required=True)
-    parser.add_argument('--sensor-name', type=str, default=None)
+    parser.add_argument('--sensor-name', type=str, required=True)
     parser.add_argument('--csv-data-column', type=int, default=2)
     parser.add_argument('--csv-datetime-column', type=int, default=0)
 
@@ -88,13 +86,12 @@ def setup_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def csv_to_lmdb(csv_filename, mdb_filename, sensor_name=None, csv_data_column=2, csv_datetime_column=0):
+def csv_to_lmdb(csv_filename, mdb_filename, sensor_name, csv_data_column=2, csv_datetime_column=0):
     status, dates, values = read_csv(csv_filename=csv_filename,
                                      data_column=csv_data_column,
                                      datetime_column=csv_datetime_column)
-    with manager.get_transaction(mdb_filename, 'data_' + sensor_name, write=True) as txn:
-        for date, value in zip(dates, values):
-            txn.put(date.isoformat().encode(), struct.pack('d', float(value)))
+    if dates:
+        Sensor(mdb_filename, sensor_name).write_values(dates, values)
 
 
 if __name__ == '__main__':
