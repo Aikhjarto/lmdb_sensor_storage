@@ -31,38 +31,38 @@ class UnitTests(unittest.TestCase):
         self.base_url = f'http://localhost:{self.port}'
         
         self.server.daemon_threads = True
-        self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        # short poll interval, since shutdown in tearDown waits for it
+        self.server_thread = threading.Thread(target=self.server.serve_forever, kwargs={'poll_interval': 0.05},
+                                              daemon=True)
         self.server_thread.start()
 
         self.reference_date = datetime.datetime.now()
 
+        # Note: write each sensor in one transaction, since each transaction is synced to disk, which is slow
+        def seconds_before(n):
+            return [self.reference_date - datetime.timedelta(seconds=i) for i in range(n)]
+
+        def seconds_after(seconds):
+            return [self.reference_date + datetime.timedelta(seconds=i) for i in seconds]
+
         s = Sensor(mdb_filename=self.mdb_filename, sensor_name='sensor1', data_format='f')
         s.metadata['unit'] = 'V'
-        for i in range(150):
-            s.write_value(date=self.reference_date-datetime.timedelta(seconds=i), value=i)
+        s.write_values(seconds_before(150), range(150))
 
         s = Sensor(mdb_filename=self.mdb_filename, sensor_name='sensor2', data_format='f')
         s.metadata['unit'] = 'V'
-        for i in range(100):
-            s.write_value(date=self.reference_date - datetime.timedelta(seconds=i), value=math.sqrt(i))
+        s.write_values(seconds_before(100), [math.sqrt(i) for i in range(100)])
 
         s = Sensor(mdb_filename=self.mdb_filename, sensor_name='sensor_RGBC', data_format='ffff')
         s.metadata['field_names'] = ('R', 'G', 'B', 'I')
-        for i in range(100):
-            s.write_value(date=self.reference_date - datetime.timedelta(seconds=i),
-                          value=[math.sqrt(i), math.log10(i+1), i, math.log2(i+1)])
+        s.write_values(seconds_before(100),
+                       [[math.sqrt(i), math.log10(i+1), i, math.log2(i+1)] for i in range(100)])
 
         s = Sensor(mdb_filename=self.mdb_filename, sensor_name='s1', data_format='f')
-        s[self.reference_date] = 1
-        s[self.reference_date + datetime.timedelta(seconds=5)] = 2
-        s[self.reference_date + datetime.timedelta(seconds=10.1)] = 3
-        s[self.reference_date + datetime.timedelta(seconds=15)] = 4
+        s.write_values(seconds_after((0, 5, 10.1, 15)), [1, 2, 3, 4])
 
         s = Sensor(mdb_filename=self.mdb_filename, sensor_name='s2', data_format='f')
-        s[self.reference_date] = 10
-        s[self.reference_date + datetime.timedelta(seconds=5)] = 20
-        s[self.reference_date + datetime.timedelta(seconds=6.5)] = 30
-        s[self.reference_date + datetime.timedelta(seconds=15)] = 40
+        s.write_values(seconds_after((0, 5, 6.5, 15)), [10, 20, 30, 40])
 
     def tearDown(self) -> None:
         self.server.shutdown()
