@@ -63,8 +63,16 @@ Parameters can also be read from a settings file via `--settings-filename`, with
 ```
 Only lines starting with `-` are processed, so other lines, e.g. starting with `#`, are comments.
 
-Subscriptions use QoS 1 by default, i.e., messages are delivered at least once while connected.
+Subscriptions use QoS 1 by default, i.e., messages are delivered at least once.
 Use `--mqtt-qos` to change it.
+
+The subscriber connects via MQTT 5 with a fixed client id, by default
+`lmdb_sensor_storage-<hostname>-<name of settings file>` (or of the mdb file without settings file).
+Thus, the broker keeps the session for one day after a disconnect, and delivers messages with QoS > 0 published while
+the subscriber was disconnected after it reconnects.
+Each start of the subscriber begins with a new session, so changes of the subscribed topics take effect.
+Client ids must be unique, thus set `--mqtt-client-id` when running multiple subscribers with the same settings file
+name on one host.
 
 To connect via TLS, use `--mqtt-tls`, which verifies the broker against the CAs of the system and uses port 8883 by
 default. `--mqtt-ca-file` sets other CA certificates, and `--mqtt-cert-file` and `--mqtt-key-file` set a client

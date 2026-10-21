@@ -18,6 +18,11 @@ def add_mqtt(g):
 
     g.add_argument('--mqtt-password', type=str, default=None)
 
+    g.add_argument('--mqtt-client-id', type=str, default=None,
+                   help='Client id, which must be unique for each client of the broker. '
+                        'Default is "lmdb_sensor_storage-<hostname>-<name of settings file>", or with the name of '
+                        'the mdb file if no settings file is given.')
+
     g.add_argument('--mqtt-qos', type=int, choices=(0, 1, 2), default=1,
                    help='Quality of service for subscriptions. Default 1 ensures that messages are delivered '
                         'at least once while connected.')
@@ -96,6 +101,7 @@ class LoadFromFile(argparse.Action):
 
     # noinspection PyShadowingNames
     def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values.name)
         with values as f:
             # parse arguments in the file and store them in the target namespace
             for line in f:

@@ -6,10 +6,16 @@ import json
 import argparse
 import lmdb
 import logging
+import os
+import socket
 from lmdb_sensor_storage._parser import add_logging, setup_logging, add_mqtt, LoadFromFile, fromisoformat
 import regex
 
 logger = logging.getLogger('lmdb_sensor_storage.mqtt_subscriber')
+
+# The broker keeps the session, i.e., subscriptions and messages with QoS > 0, for this time after a disconnect, so
+# messages published while the subscriber was disconnected are delivered after reconnecting.
+SESSION_EXPIRY_SECONDS = 24 * 3600
 
 
 re_esphome = regex.compile(r'^.+\/.+\/.+\/state$')
@@ -190,7 +196,8 @@ def on_connect(mqtt_client, userdata, flags, reason_code, properties):
     if reason_code.is_failure:
         logger.error('MQTT connect failed: %s', reason_code)
         return
-    logger.warning('Connected to MQTT broker, subscribing to %s', userdata['topics'])
+    logger.warning('Connected to MQTT broker as %s, session present: %s, subscribing to %s',
+                   userdata['client_id'], flags.session_present, userdata['topics'])
     for topic in userdata['topics']:
         res, mid = mqtt_client.subscribe(topic, qos=userdata['qos'])
         if res != mqtt.MQTT_ERR_SUCCESS:
@@ -205,15 +212,24 @@ def use_tls(args: argparse.Namespace) -> bool:
     return bool(args.mqtt_tls or args.mqtt_ca_file or args.mqtt_cert_file)
 
 
+def client_id(args: argparse.Namespace) -> str:
+    if args.mqtt_client_id:
+        return args.mqtt_client_id
+    name = args.settings_filename if args.settings_filename else args.mdb_filename
+    return f'lmdb_sensor_storage-{socket.gethostname()}-{os.path.basename(name)}'
+
+
 def create_client(args: argparse.Namespace) -> mqtt.Client:
     """Create a client according to the command line arguments, ready to connect to the broker."""
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    _client_id = client_id(args)
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=_client_id, protocol=mqtt.MQTTv5)
     client.username_pw_set(args.mqtt_username, args.mqtt_password)
     if use_tls(args):
         client.tls_set(ca_certs=args.mqtt_ca_file, certfile=args.mqtt_cert_file, keyfile=args.mqtt_key_file)
         if args.mqtt_tls_insecure:
             client.tls_insecure_set(True)
     client.user_data_set({'mdb_filename': args.mdb_filename,
+                          'client_id': _client_id,
                           'topics': args.mqtt_subscribe_topic,
                           'qos': args.mqtt_qos,
                           'write_value_kwargs': {'only_if_value_changed': True,
@@ -233,6 +249,19 @@ def broker_port(args: argparse.Namespace) -> int:
     return 8883 if use_tls(args) else 1883
 
 
+def connect(client: mqtt.Client, args: argparse.Namespace):
+    """
+    Connect to the broker. The first connect starts a new session, which removes subscriptions of a previous run,
+    e.g., of topics no longer configured. Reconnects resume the session.
+    """
+    properties = mqtt.Properties(mqtt.PacketTypes.CONNECT)
+    properties.SessionExpiryInterval = SESSION_EXPIRY_SECONDS
+    res = client.connect(host=args.mqtt_broker, port=broker_port(args),
+                         clean_start=mqtt.MQTT_CLEAN_START_FIRST_ONLY, properties=properties)
+    if res != mqtt.MQTT_ERR_SUCCESS:
+        raise RuntimeError(f'MQTT connection error {res}')
+
+
 if __name__ == '__main__':
 
     p = setup_parser()
@@ -244,8 +273,5 @@ if __name__ == '__main__':
                  {key: '***' if key == 'mqtt_password' and val else val for key, val in args.__dict__.items()})
 
     client = create_client(args)
-    res = client.connect(host=args.mqtt_broker, port=broker_port(args))
-    if res != mqtt.MQTT_ERR_SUCCESS:
-        raise RuntimeError(f'MQTT connection error {res}')
-
+    connect(client, args)
     client.loop_forever()

@@ -3,9 +3,11 @@ Tests running the MQTT subscriber as process against its own mosquitto broker.
 """
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 from unittest import mock
@@ -14,7 +16,7 @@ import paho.mqtt.client as mqtt
 import paho.mqtt.publish
 
 from lmdb_sensor_storage.db.sensor_db import Sensors
-from lmdb_sensor_storage.mqtt_subscriber import create_client, on_connect, setup_parser
+from lmdb_sensor_storage.mqtt_subscriber import client_id, create_client, on_connect, setup_parser
 from tests import EmptyDatabaseMixin
 
 MOSQUITTO = shutil.which('mosquitto') or '/usr/sbin/mosquitto'
@@ -54,6 +56,7 @@ class SubscriberProcessMixin(EmptyDatabaseMixin):
     def tearDown(self):
         for process in (self.subscriber, self.broker):
             if process is not None and process.poll() is None:
+                process.send_signal(signal.SIGCONT)  # in case it was stopped
                 process.terminate()
                 process.wait(timeout=10)
         super().tearDown()
@@ -73,7 +76,7 @@ class SubscriberProcessMixin(EmptyDatabaseMixin):
     def start_subscriber(self, *args):
         with open(self.subscriber_log, 'w') as log:
             self.subscriber = subprocess.Popen(
-                [sys.executable, '-m', 'lmdb_sensor_storage.mqtt_subscriber',
+                [sys.executable, '-u', '-m', 'lmdb_sensor_storage.mqtt_subscriber',
                  '--mdb-filename', self.mdb_filename, '--mqtt-broker', 'localhost',
                  '--mqtt-subscribe-topic', 'test/#', *args],
                 env={**os.environ, 'PYTHONPATH': os.pathsep.join(sys.path)},
@@ -118,6 +121,32 @@ class TestSubscriberReconnect(SubscriberProcessMixin, unittest.TestCase):
         self.assertIsNone(self.subscriber.poll(), 'subscriber stopped')
         with open(self.subscriber_log) as f:
             self.assertIn('Disconnected from MQTT broker', f.read())
+
+    def test_messages_while_disconnected_are_delivered(self):
+        self.start_broker(PORT)
+        self.start_subscriber('--mqtt-broker-port', str(PORT), '--mqtt-client-id', 'test-subscriber')
+        self.publish_until_stored(1.0, PORT)
+
+        # Disconnect the subscriber while the broker keeps running: freeze it, so it cannot reconnect, and let another
+        # client take over its session, which closes the connection of the subscriber. Then disconnect the other
+        # client, which keeps the session, but leaves it without connection.
+        self.subscriber.send_signal(signal.SIGSTOP)
+        properties = mqtt.Properties(mqtt.PacketTypes.CONNECT)
+        properties.SessionExpiryInterval = 3600
+        other = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id='test-subscriber', protocol=mqtt.MQTTv5)
+        other.connect('localhost', PORT, clean_start=False, properties=properties)
+        other.loop_start()
+        self.assertTrue(wait_for(other.is_connected))
+        other.disconnect()
+        other.loop_stop()
+
+        paho.mqtt.publish.single('test/value', 2.0, qos=1, hostname='localhost', port=PORT)
+        self.subscriber.send_signal(signal.SIGCONT)
+
+        # the message is not retained, thus it is only delivered via the session of the subscriber
+        if not wait_for(lambda: 2.0 in self.values('test/value')):
+            with open(self.subscriber_log) as f:
+                self.fail(f'message published while disconnected was not delivered, subscriber log:\n{f.read()}')
 
 
 class TestSubscriberTLS(SubscriberProcessMixin, unittest.TestCase):
@@ -164,9 +193,21 @@ class TestCreateClient(unittest.TestCase):
             client = create_client(self.parse(*args))
             mock_client = mock.Mock()
             mock_client.subscribe.return_value = (mqtt.MQTT_ERR_SUCCESS, 1)
-            on_connect(mock_client, client.user_data_get(), None, mqtt.ReasonCode(mqtt.PacketTypes.CONNACK, 'Success'),
-                       None)
+            on_connect(mock_client, client.user_data_get(), mqtt.ConnectFlags(session_present=False),
+                       mqtt.ReasonCode(mqtt.PacketTypes.CONNACK, 'Success'), None)
             mock_client.subscribe.assert_called_once_with('a/#', qos=qos)
+
+    def test_client_id(self):
+        hostname = socket.gethostname()
+        self.assertEqual(f'lmdb_sensor_storage-{hostname}-x.mdb', client_id(self.parse()))
+        self.assertEqual('my-id', client_id(self.parse('--mqtt-client-id', 'my-id')))
+
+        with tempfile.TemporaryDirectory() as folder:
+            settings_filename = os.path.join(folder, 'settings.txt')
+            with open(settings_filename, 'w') as f:
+                f.write('--mqtt-broker localhost\n')
+            self.assertEqual(f'lmdb_sensor_storage-{hostname}-settings.txt',
+                             client_id(self.parse('--settings-filename', settings_filename)))
 
     def test_tls(self):
         with mock.patch.object(mqtt.Client, 'tls_set') as tls_set:
