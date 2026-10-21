@@ -330,6 +330,17 @@ class TestOnMessage(EmptyDatabaseMixin, unittest.TestCase):
         self.on_message('test/value', '1.5')
         self.assertEqual([1.5], LMDBSensorStorage(self.mdb_filename)['test/value'].values())
 
+    def test_nested_dict_in_history_is_skipped(self):
+        payload = ('{"len":1,"epoch":[1709279498],"Current Sensors Temperature":[27.75],'
+                   '"spectrum":{"len":1,"frequencies":[50],"U1A_current":[[0.0281364]]}}')
+        with self.assertLogs('lmdb_sensor_storage.mqtt_subscriber', level='WARNING') as logs:
+            self.on_message('heizung/b0b21ca893f8/history', payload)
+        self.assertIn('not implemented', '\n'.join(logs.output))
+
+        storage = LMDBSensorStorage(self.mdb_filename)
+        self.assertEqual(['Current Sensors Temperature'], storage.keys())
+        self.assertEqual([27.75], storage['Current Sensors Temperature'].values())
+
     def test_database_errors_are_raised(self):
         # a directory cannot be opened as mdb file
         with self.assertRaises(lmdb.Error):

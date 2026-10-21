@@ -17,8 +17,8 @@
 * Responses to localhost are gzip-compressed, which only costs CPU time.
 
 ## MQTT subscriber
-* History messages with nested dicts, e.g. `"spectrum": {"len": 1, "frequencies": [50], ...}`, store the keys of the
-  dict as string values of a sensor named after the dict, and the values are lost.
+* History messages with nested dicts, e.g. `"spectrum": {"len": 1, "frequencies": [50], ...}`, are not implemented;
+  they are skipped with a warning.
 * The pattern for Tasmota topics also matches e.g. `tele/x/SENSORS`, and `.+` in the ESPHome pattern spans topic
   levels. The stdlib `re` would be sufficient instead of the dependency `regex`.
 * The log message for undecodable Tasmota messages lacks the `f` prefix of its f-string.

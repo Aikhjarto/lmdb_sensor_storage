@@ -72,6 +72,11 @@ def _on_message(mqtt_client, userdata, message):
         del data['len']
         del data['epoch']
         for sensor_name in data.keys():
+            if isinstance(data[sensor_name], dict):
+                # e.g. "spectrum" in the example above, iterating it would store its keys as values
+                logger.warning("skipping '%s' of message on topic '%s': nested dicts in history messages are not "
+                               "implemented", sensor_name, message.topic)
+                continue
             for date, value in zip(dates, data[sensor_name]):
                 if date.year > 2016:
                     try:
