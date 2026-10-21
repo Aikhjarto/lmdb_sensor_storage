@@ -9,9 +9,6 @@
   they are skipped with a warning.
 
 ## Deployment
-* The systemd units in `src/lmdb_sensor_storage/etc/systemd/system` differ from the installed ones: the MQTT
-  subscriber unit is no template, units lack `User=` and `After=network-online.target`, and the Wunderground unit
-  contains the API key instead of using `EnvironmentFile=`.
 
 ## Development
 * Check the results of the CI on GitHub for Python 3.7 to 3.12, which were not tested locally.
