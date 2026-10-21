@@ -17,7 +17,7 @@
 * No CI. Tests run only with Python 3.13 so far, tox covers 3.7 to 3.13.
 * `requirements.txt` duplicates the dependencies of `pyproject.toml`.
 * Use the SPDX string for the license in `pyproject.toml` when requiring Python >= 3.9.
-* Dead code: `_old_api.py`, `generate_history_plotly`, `plot_plotly`, and the hand-copied plotly template.
+* Dead code: `generate_history_plotly`, `plot_plotly`, and the hand-copied plotly template.
 
 # Ideas
 
