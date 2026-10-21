@@ -4,12 +4,10 @@ Once: 'since', 'until', 'decimate_to_s', 'limit', 'first', 'last'
 Multiple times: sensor_name
 """
 
-from collections import OrderedDict
 import datetime
 from html import escape
 import json
 import math
-import secrets
 import socket
 import socketserver
 import struct
@@ -59,10 +57,6 @@ class MDBServer(socketserver.ThreadingTCPServer):
     # allow IPv4 and IPv6
     address_family = socket.AF_INET6
 
-    # sessions are dropped when unused for SESSION_TIMEOUT, or least recently used ones when exceeding MAX_SESSIONS
-    MAX_SESSIONS = 1000
-    SESSION_TIMEOUT = datetime.timedelta(days=1)
-
     # upper bound for the number of samples requested via `limit`
     MAX_LIMIT = 100000
 
@@ -75,7 +69,6 @@ class MDBServer(socketserver.ThreadingTCPServer):
         self.wunderground_station_ids = wunderground_station_ids
         self.wunderground_api_key = wunderground_api_key
         self.group_sensors_regexps = group_sensors_regexps
-        self.sessions = OrderedDict()  # ordered by last access
         self.my_lock = Lock()
         super().__init__(*args, **kwargs)
 
@@ -110,6 +103,8 @@ class MDBRequestHandler(HTTPRequestHandler):
     </select>
     </div>
     
+    {hidden_inputs}
+
     <div id="id_div_download_wunderground">
     <input type="checkbox" id="id_download_wunderground" name="download_wunderground" />
     <label id="id_label_download_wunderground" for="id_download_wunderground">Update today's weather data</label>
@@ -128,7 +123,7 @@ class MDBRequestHandler(HTTPRequestHandler):
 """
 
     html_delete_note_form_template = """
-<form id="note_delete" action="time?delete=yes" method="POST">
+<form id="note_delete" action="{action}" method="POST">
 <div id="div_id_note_del">
 <select name="timestamp" id="del_note">
 {options}
@@ -139,8 +134,8 @@ class MDBRequestHandler(HTTPRequestHandler):
 </form>
 """
 
-    html_add_note_form = """
-<form id="note_add" action="time" method="POST">
+    html_add_note_form_template = """
+<form id="note_add" action="{action}" method="POST">
 <div id="div_id_note_add">
 <input id="add_note_timestamp" name="timestamp" type="datetime-local" step="0.001"></input>
 <input type="text" id="short" name="short" placeholder="Short description"></input>
@@ -201,14 +196,12 @@ class MDBRequestHandler(HTTPRequestHandler):
     </style>"""
 
     def __init__(self, *args, **kwargs):
-        self.sid = None
-        self.session = {'query_dict': {}}  # set by update_session
         self.query_dict = {}
 
         super().__init__(*args, **kwargs)
 
     def ensure_single_sensor_name(self) -> Union[str, Literal[False]]:
-        sensor_names = self.get_sensor_names_from_session()
+        sensor_names = self.get_sensor_names_from_query()
         if len(sensor_names) != 1:
             logger.info('Request "%s" does not have a single sensor_name but %s',
                         self.path, sensor_names)
@@ -217,30 +210,11 @@ class MDBRequestHandler(HTTPRequestHandler):
             return False
         return sensor_names[0]
 
-    @staticmethod
-    def generate_sid(n: int = 32) -> str:
-        """
-        Generate a session id from `n` random bytes.
-        """
-        return secrets.token_urlsafe(n)
-
-    def parse_cookies(self, cookie_list='') -> dict:
-        if not cookie_list:
-            cookie_list = self.headers["Cookie"]
-
-        # assumption: no "=" in cookie name
-        cookies = {}
-        for cookie in (cookie_list or '').split(';'):
-            name, sep, value = cookie.strip().partition('=')
-            if sep:
-                cookies[name] = value
-        return cookies
-
     def parse_query(self) -> Union[Exception, Literal[True]]:
         """
         Parses query string, converts to desired number and time datatypes and checks if requested sensor names
         are in the database.
-        If everything works, result are stored self.query_dict, and self.server.sessions[self.sid] is updated.
+        If everything works, result are stored self.query_dict.
         If anything goes wrong, HTTP 422 is sent with an appropriate errormessage.
         """
 
@@ -278,9 +252,6 @@ class MDBRequestHandler(HTTPRequestHandler):
                         raise ValueError(f'Sensor name {sensor_name} is not in list '
                                          f'of available sensor names {sensor_names}')
 
-            with self.server.my_lock:
-                self.session['query_dict'].update(self.query_dict)
-
         except Exception as error:
 
             self.send_error_response(422, message=str(error),
@@ -292,54 +263,36 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         return True
 
-    @property
-    def cookie(self):
-        return f"sid={self.sid}"
+    def query_string(self, without=()) -> str:
+        """Query string of the request, without the parameters in `without`."""
+        query = urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query)
+        return urllib.parse.urlencode([(key, value) for key, value in query if key not in without])
 
-    def update_session(self):
+    def send_redirect(self, location: str, code: int = 307):
+        self.send_response(code)
+        self.send_header("Location", location)
+        self.send_header("Content-length", "0")
+        self.end_headers()
 
-        sid = self.parse_cookies().get('sid')
+    def redirect_to_timespan(self, since: datetime.timedelta, decimate_to_s: float = None):
+        """Redirect to the history page for the time span from `since` before now until now."""
         now = datetime.datetime.now()
-        with self.server.my_lock:
-            sessions = self.server.sessions
-
-            # drop expired sessions and least recently used ones, if there are too many
-            while sessions:
-                oldest_sid, oldest_session = next(iter(sessions.items()))
-                if (len(sessions) >= self.server.MAX_SESSIONS or
-                        now - oldest_session['last_access'] > self.server.SESSION_TIMEOUT):
-                    del sessions[oldest_sid]
-                else:
-                    break
-
-            # only accept session ids generated by the server
-            if sid not in sessions:
-                sid = self.generate_sid()
-                sessions[sid] = {'query_dict': {},
-                                 'session_start': now}
-
-            sessions[sid]['last_access'] = now
-            sessions.move_to_end(sid)
-            self.sid = sid
-            # keep a reference, since the session might be dropped from sessions while handling the request
-            self.session = sessions[sid]
+        query = {'since': (now - since).isoformat(), 'until': now.isoformat()}
+        if decimate_to_s:
+            query['decimate_to_s'] = decimate_to_s
+        self.send_redirect('/time?' + urllib.parse.urlencode(query))
 
     def do_GET(self):
-
-        self.update_session()
 
         if self.parse_query() is not True:
             return
 
         if self.path == '/':
-            self.send_response(307)
-            self.send_header("Location", '/now')
-            self.send_header("Content-length", "0")
-            self.end_headers()
+            self.send_redirect('/now')
 
         elif self.path.startswith('/json'):
-            timespan_kwargs = self.get_timespan_dict_from_session()
-            sensor_names = self.get_sensor_names_from_session()
+            timespan_kwargs = self.get_timespan_dict_from_query()
+            sensor_names = self.get_sensor_names_from_query()
             if not sensor_names:
                 logger.info('Request "%s" does not have a single sensor_name', self.path)
                 msg = f'Request "{self.path}" does not have a single sensor_name.'
@@ -357,7 +310,6 @@ class MDBRequestHandler(HTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header('Set-Cookie', self.cookie)
             self.send_chunked_header()
             self.end_headers()
             self.write_chunked(data)
@@ -365,8 +317,8 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         elif self.path.startswith('/data'):
             # get data (timestamps and values) for a specific time-range
-            timestamp_kwargs = self.get_timespan_dict_from_session()
-            sensor_names = self.get_sensor_names_from_session()
+            timestamp_kwargs = self.get_timespan_dict_from_query()
+            sensor_names = self.get_sensor_names_from_query()
             if not sensor_names:
                 logger.info('Request "%s" does not have a single sensor_name')
                 msg = f'Request "{self.path}" does not have a single sensor_name.'
@@ -375,12 +327,11 @@ class MDBRequestHandler(HTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-Type", "text/csv")
-            self.send_header('Set-Cookie', self.cookie)
             self.send_chunked_header()
             self.end_headers()
 
             try:
-                include_header = self.session['query_dict'].get('include_header', False)
+                include_header = self.query_dict.get('include_header', False)
                 self.server.sensor_storage.get_csv(sensor_names,
                                                    self.write_chunked,
                                                    include_header=include_header,
@@ -392,9 +343,9 @@ class MDBRequestHandler(HTTPRequestHandler):
         elif self.path.startswith('/nodered_chart'):
             # https://github.com/node-red/node-red-dashboard/blob/master/Charts.md#line-charts-1
 
-            kwargs = self.get_timespan_dict_from_session()
+            kwargs = self.get_timespan_dict_from_query()
 
-            sensor_names = self.get_sensor_names_from_session()
+            sensor_names = self.get_sensor_names_from_query()
             if not sensor_names:
                 logger.info('Request "%s" does not have a list called sensor_name but %s',
                             self.path, sensor_names)
@@ -415,7 +366,7 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         elif self.path.startswith('/time'):
 
-            kwargs = self.get_timespan_dict_from_session()
+            kwargs = self.get_timespan_dict_from_query()
 
             if 'download_wunderground' in self.query_dict:
                 with self.server.my_lock:
@@ -428,6 +379,9 @@ class MDBRequestHandler(HTTPRequestHandler):
                             self.send_error(500, message=f'Could not download data for {station_id} from wunderground',
                                             explain=str(e))
                             return
+                # show the page without downloading again on reload
+                self.send_redirect('/time?' + self.query_string(without=('download_wunderground',)), code=303)
+                return
 
             if 'since' not in kwargs:
                 kwargs['since'] = (datetime.datetime.now() - datetime.timedelta(days=1))
@@ -438,7 +392,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             kwargs['limit'] = 10000 if 'limit' not in kwargs else int(kwargs['limit'])
 
             # generate plotly.js figure as an HTML <div>
-            sensor_names = self.get_sensor_names_from_session()
+            sensor_names = self.get_sensor_names_from_query()
             try:
                 div_plot = generate_history_div(self.server.sensor_storage.mdb_filename,
                                                 sensor_names=sensor_names,
@@ -475,10 +429,17 @@ class MDBRequestHandler(HTTPRequestHandler):
                 else:
                     options_sensors.append(f'<option name="{sensor_name_html}">{sensor_name_html}</option>')
 
+            # keep parameters, which are not part of the form
+            hidden_inputs = []
+            if 'decimate_to_s' in self.query_dict:
+                hidden_inputs.append(f'<input type="hidden" name="decimate_to_s" '
+                                     f'value="{self.query_dict["decimate_to_s"]}">')
+
             range_select_form = \
                 self.html_range_select_form_template.format(since=since,
                                                             until=until,
                                                             options=options,
+                                                            hidden_inputs='\n'.join(hidden_inputs),
                                                             sensor_select_options='\n'.join(options_sensors),
                                                             multiselect_height=min(10, len(options_sensors)))
             # delete note form
@@ -488,10 +449,14 @@ class MDBRequestHandler(HTTPRequestHandler):
                                                                            endpoint=True):
                 options.append(f'<option value="{escape(str(t_isoformat))}">'
                                f'{escape(str(t_isoformat))}; {escape(val["short"])}</option>')
-            delete_note_form = self.html_delete_note_form_template.format(options='\n'.join(options))
+            # note forms return to the current view
+            query = self.query_string()
+            delete_note_form = self.html_delete_note_form_template.format(
+                action=escape('time?' + urllib.parse.urlencode({'delete': 'yes'}) + ('&' + query if query else '')),
+                options='\n'.join(options))
 
             # add note form
-            add_note_form = self.html_add_note_form
+            add_note_form = self.html_add_note_form_template.format(action=escape('time?' + query))
 
             div_inputs = '<div id="id_div_inputs">{}</div>'.format('\n'.join((
                 range_select_form,
@@ -518,7 +483,6 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_header('Cache-Control', 'no-store, must-revalidate')
             self.send_header('Expires', '0')
             self.send_header('Link', '</plotly.min.js>; rel=preload; as=script')
-            self.send_header('Set-Cookie', self.cookie)
             self.send_chunked_header()
             self.end_headers()
 
@@ -526,40 +490,24 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.end_write_chunked()
 
         elif self.path == '/month':
-            # serve graph of values over last week in 15 min intervals
-            self.send_response(307)
-            since = (datetime.datetime.now() - datetime.timedelta(days=30)).isoformat()
-            self.send_header("Location", f'/time?decimate_to_s=900&since={since}&until={datetime.datetime.now()}')
-            self.send_header("Content-length", "0")
-            self.end_headers()
+            # serve graph of values over last 30 days in 15 min intervals
+            self.redirect_to_timespan(datetime.timedelta(days=30), decimate_to_s=900)
 
         elif self.path == '/week' or self.path == '/weekly':
             # serve graph of values over last week in 1 min intervals
-            self.send_response(307)
-            since = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
-            self.send_header("Location", f'/time?decimate_to_s=60&since={since}&until={datetime.datetime.now()}')
-            self.send_header("Content-length", "0")
-            self.end_headers()
+            self.redirect_to_timespan(datetime.timedelta(days=7), decimate_to_s=60)
 
         elif self.path == '/today' or self.path == '/day':
             # serve graph of values from last 24h in 1 seconds intervals
-            self.send_response(307)
-            since = (datetime.datetime.now() - datetime.timedelta(days=1)).isoformat()
-            self.send_header("Location", f'/time?decimate_to_s=1&since={since}&until={datetime.datetime.now()}')
-            self.send_header("Content-length", "0")
-            self.end_headers()
+            self.redirect_to_timespan(datetime.timedelta(days=1), decimate_to_s=1)
 
         elif self.path == '/now' or self.path == '/hour':
             # serve graph of values from last 4 hour
-            self.send_response(307)
-            since = (datetime.datetime.now() - datetime.timedelta(hours=4)).isoformat()
-            self.send_header("Location", f'/time?since={since}&until={datetime.datetime.now()}')
-            self.send_header("Content-length", "0")
-            self.end_headers()
+            self.redirect_to_timespan(datetime.timedelta(hours=4))
 
         elif self.path.startswith('/notes'):
 
-            d = self.get_timespan_dict_from_session()
+            d = self.get_timespan_dict_from_query()
             notes = self.server.sensor_storage.notes.items(since=d.get('since'), until=d.get('until'))
             data = json.dumps(notes, cls=DatetimeTimestampEncoder)
 
@@ -627,20 +575,18 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_error(400, message='Request body is not UTF-8')
             return None
 
-    def send_message_page(self, message: str):
-        """Send a short HTML page showing `message`, which reloads the current URL after one second."""
-        html = html_template.format(head='<title>Sensor data viewer</title>\n<meta http-equiv="refresh" content="1" />',
+    def send_message_page(self, message: str, url: str):
+        """Send a short HTML page showing `message`, which loads `url` after one second."""
+        html = html_template.format(head=f'<title>Sensor data viewer</title>\n'
+                                         f'<meta http-equiv="refresh" content="{escape(f"1; url={url}")}" />',
                                     body=escape(message)).encode()
         self.send_response(200)
         self.send_header('Content-Type', 'text/html')
         self.send_header('Content-Length', str(len(html)))
-        self.send_header('Set-Cookie', self.cookie)
         self.end_headers()
         self.wfile.write(html)
 
     def do_POST(self):
-        self.update_session()
-
         body = self.read_body()
         if body is None:
             return
@@ -657,11 +603,12 @@ class MDBRequestHandler(HTTPRequestHandler):
                 self.send_error(400, message=f'Invalid sample "{body[:100]}": {e}')
                 return
             self.send_response(204)
-            self.send_header('Set-Cookie', self.cookie)
             self.end_headers()
 
         elif url.path == '/time':
             form = urllib.parse.parse_qs(body)
+            # return to the view the form was sent from
+            return_url = '/time?' + self.query_string(without=('delete',))
             timestamp = form.get('timestamp', [''])[0]
             try:
                 timestamp = as_datetime(timestamp) if timestamp else None
@@ -678,14 +625,14 @@ class MDBRequestHandler(HTTPRequestHandler):
                 except KeyError:
                     self.send_error(404, message=f'No note at {timestamp}')
                     return
-                self.send_message_page('Note was deleted')
+                self.send_message_page('Note was deleted', return_url)
 
             elif form.get('short'):
                 # without timestamp, the note is added at the current time
                 self.server.sensor_storage.notes.add_note(form['short'][0],
                                                           long=form.get('long', [None])[0],
                                                           timestamp=timestamp)
-                self.send_message_page('Note was written')
+                self.send_message_page('Note was written', return_url)
 
             else:
                 self.send_error(400, message='parameter "short" or "delete" must be given')
@@ -693,16 +640,16 @@ class MDBRequestHandler(HTTPRequestHandler):
         else:
             self.send_error(404)
 
-    def get_sensor_names_from_session(self) -> List[str]:
-        return self.session['query_dict'].get('sensor_name', [])
+    def get_sensor_names_from_query(self) -> List[str]:
+        return self.query_dict.get('sensor_name', [])
 
-    def get_timespan_dict_from_session(self) -> dict:
+    def get_timespan_dict_from_query(self) -> dict:
         """
         Get dict for `since`, `until`, and `decimate_to_s`.
         """
         kwargs = {}
         for key in ('since', 'until', 'decimate_to_s', 'limit', 'first', 'last'):
-            if key in self.session['query_dict']:
-                kwargs[key] = self.session['query_dict'][key]
+            if key in self.query_dict:
+                kwargs[key] = self.query_dict[key]
 
         return kwargs
