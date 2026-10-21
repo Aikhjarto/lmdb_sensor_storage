@@ -256,6 +256,23 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(400, self.post('/add_sample', 'garbage').status_code)
         self.assertEqual(400, self.post('/add_sample', f'{timestamp.isoformat()};abc;sensor1').status_code)
 
+    def test_json_errors(self):
+        req = requests.request('GET', f'{self.base_url}/json', timeout=10)
+        self.assertEqual(422, req.status_code)
+        self.assertIn('sensor_name', req.json()['error'])
+
+        req = self.get_json(limit=0)
+        self.assertEqual(422, req.status_code)
+        self.assertIn('limit', req.json()['error'])
+
+        def fail(*args, **kwargs):
+            raise RuntimeError('broken')
+        self.server.sensor_storage.get_json = fail
+        req = self.get_json()
+        self.assertEqual(500, req.status_code)
+        self.assertEqual('RuntimeError: broken', req.json()['error'])
+        self.assertIn('Traceback', req.json()['explain'])
+
     def test_html_escaping(self):
         payload = '</script><img src=x onerror=alert(1)>'
         s = Sensor(mdb_filename=self.mdb_filename, sensor_name=payload, data_format='f')

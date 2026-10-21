@@ -283,9 +283,9 @@ class MDBRequestHandler(HTTPRequestHandler):
 
         except Exception as error:
 
-            self.send_error(422, message=str(error),
-                            explain=f'Malformed request {self.path} resulting in error {error}\n '
-                                    f'{traceback.format_exc()}')
+            self.send_error_response(422, message=str(error),
+                                     explain=f'Malformed request {self.path} resulting in error {error}\n '
+                                             f'{traceback.format_exc()}')
             logger.info('Malformed request "%s" resulting in %s',
                         self.path, error)
             return error
@@ -341,9 +341,18 @@ class MDBRequestHandler(HTTPRequestHandler):
             timespan_kwargs = self.get_timespan_dict_from_session()
             sensor_names = self.get_sensor_names_from_session()
             if not sensor_names:
-                logger.info('Request "%s" does not have a single sensor_name')
+                logger.info('Request "%s" does not have a single sensor_name', self.path)
                 msg = f'Request "{self.path}" does not have a single sensor_name.'
-                self.send_error(422, message=msg)
+                self.send_error_response(422, message=msg)
+                return
+
+            # generate the whole response before sending, so errors can still be sent as error response
+            try:
+                data = self.server.sensor_storage.get_json(sensor_names, **timespan_kwargs)
+            except Exception as error:
+                logger.exception('Request "%s" failed', self.path)
+                self.send_error_response(500, message=f'{type(error).__name__}: {error}',
+                                         explain=traceback.format_exc())
                 return
 
             self.send_response(200)
@@ -351,12 +360,7 @@ class MDBRequestHandler(HTTPRequestHandler):
             self.send_header('Set-Cookie', self.cookie)
             self.send_chunked_header()
             self.end_headers()
-
-            try:
-                self.server.sensor_storage.get_json(sensor_names, self.write_chunked, **timespan_kwargs)
-            except Exception:
-                self.write_chunked(traceback.format_exc().encode())
-
+            self.write_chunked(data)
             self.end_write_chunked()
 
         elif self.path.startswith('/data'):
@@ -580,6 +584,24 @@ class MDBRequestHandler(HTTPRequestHandler):
             super().do_GET()
 
     # noinspection PyPep8Naming
+    def send_error_response(self, code: int, message: str, explain: str = None):
+        """
+        Like `send_error`, but for requests to /json, the error is sent as JSON object with the keys
+        "error" and "explain".
+        """
+        if not urllib.parse.urlsplit(self.path).path.startswith('/json'):
+            self.send_error(code, message=message, explain=explain)
+            return
+
+        body = json.dumps({'error': message, 'explain': explain}).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Connection', 'close')
+        self.end_headers()
+        self.close_connection = True
+        self.wfile.write(body)
+
     def read_body(self) -> Union[str, None]:
         """
         Read the request body according to Content-Length.
