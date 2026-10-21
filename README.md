@@ -110,7 +110,11 @@ Start `lmdb_sensor_storage.mdb_server` and query
 The port defaults to 8001 and can be changed with `--port`.
 `limit` is capped at 100000 samples per request.
 
-`/data` (CSV) and `/json` are streamed. Errors during the first megabyte result in an error response, for `/json` a
+Requesting several sensors results in a row for each timestamp of any of them, with the most recent value of each
+sensor at or before it, or an empty value (`null` in JSON) before its first sample. `limit` limits the number of rows.
+
+`/data` (CSV) and `/json` are streamed and read the database in windows of 50000 samples per sensor, so memory usage
+does not grow with the length of the exported history. Errors during the first megabyte result in an error response, for `/json` a
 JSON object with the keys `error` and `explain`. Errors later abort the transfer without the end of the chunked
 response, so HTTP clients report an incomplete response instead of returning incomplete data.
 

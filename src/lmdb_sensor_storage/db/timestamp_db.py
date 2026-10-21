@@ -422,6 +422,20 @@ class TimestampBytesDB(LMDBDict):
                             c.next()
                             return self._key_packer.unpack(c.key())
 
+    def get_value_before(self, date: datetime):
+        """Value of the last sample before `date`, or None if there is none."""
+        if not manager.db_exists(self._mdb_filename, self._db_name):
+            return None
+        with manager.get_transaction(self._mdb_filename, self._db_name) as txn:
+            c = txn.cursor()
+            if c.set_range(self._key_packer.pack(date)):
+                found = c.prev()
+            else:
+                found = c.last()
+            if found:
+                return self._value_packer.unpack(c.value())
+        return None
+
     def get_first_value(self):
         return self._get_sample(last=False, get_value=True)
 

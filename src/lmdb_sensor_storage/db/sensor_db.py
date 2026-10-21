@@ -1,4 +1,6 @@
+from array import array
 from datetime import datetime, timezone
+import math
 from io import BytesIO
 import json
 import struct
@@ -10,10 +12,9 @@ from lmdb_sensor_storage.db._manager import manager
 from lmdb_sensor_storage._parser import as_datetime, as_local_datetime
 from lmdb_sensor_storage.db.packer import BytesPacker, StringPacker, JSONPacker, FloatPacker, \
     StructPacker
-from typing import Mapping, List, Sequence, Union, Any, Dict, Callable, Iterable
+from typing import Mapping, List, Sequence, Union, Any, Dict, Callable, Iterable, Iterator, Tuple
 from typing_extensions import Literal
 import logging
-from sortedcontainers import SortedSet
 
 logger = logging.getLogger('lmdb_sensor_storage.db')
 
@@ -261,6 +262,11 @@ class Sensors(Mapping):
 
 class LMDBSensorStorage(Sensors):
 
+    # samples per sensor read at once for exports, which bounds memory and the duration of read transactions
+    EXPORT_WINDOW = 50000
+    # rows of exports passed at once to the buffer function
+    EXPORT_WRITE_ROWS = 10000
+
     def __init__(self, mdb_filename):
         super().__init__(mdb_filename)
         self._notes_db = Notes(self._mdb_filename)
@@ -326,15 +332,73 @@ class LMDBSensorStorage(Sensors):
         if missing:
             raise KeyError(f'Sensors {missing} do not exist in {self._mdb_filename}')
 
-    def _get_common_keys(self, sensor_names: Iterable[str], **timespan_kwargs):
-        keys = SortedSet()
-        for sensor_name in sensor_names:
-            keys.update(self[sensor_name].keys(**timespan_kwargs))
-        return list(keys)
+    @staticmethod
+    def _export_kwargs(timespan_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """Arguments since, until and limit for exports; other arguments, e.g. decimate_to_s, are not supported."""
+        unsupported = set(timespan_kwargs) - {'since', 'until', 'limit'}
+        if unsupported:
+            raise ValueError(f'{sorted(unsupported)} are not supported for exports')
+        return timespan_kwargs
+
+    def _export_rows(self, sensors: Sequence[Sensor], since=None, until=None, limit: int = None) \
+            -> Iterator[Tuple[datetime, List[Any]]]:
+        """
+        Yields a row (timestamp, values) for each timestamp of any of `sensors` from `since` until `until`, which is
+        excluded, at most `limit` rows.
+        The values are the most recent value of each sensor at or before the timestamp, or None before its first
+        sample.
+
+        Data is read in windows of EXPORT_WINDOW samples per sensor, each in its own read transaction, so memory and
+        the duration of read transactions are bounded, independent of the number of samples exported.
+        """
+        since = as_datetime(since, none_ok=True)
+        until = as_datetime(until, none_ok=True)
+        # values held from before the first exported timestamp
+        values = [None if since is None else s.get_value_before(since) for s in sensors]
+        cursor = since  # read from here, including
+        done = None  # all timestamps up to here, including, were exported
+        count = 0
+        while True:
+            batches = []
+            window_end = None
+            # the first sample read after the first window is the last one exported, which is skipped
+            read_limit = self.EXPORT_WINDOW if done is None else self.EXPORT_WINDOW + 1
+            for s in sensors:
+                batch = s.items(since=cursor, until=until, limit=read_limit)
+                truncated = len(batch) == read_limit
+                if done is not None:
+                    batch = [item for item in batch if item[0] > done]
+                if truncated:
+                    # the sensor has more samples, thus timestamps after its last one are not complete in this window
+                    if window_end is None or batch[-1][0] < window_end:
+                        window_end = batch[-1][0]
+                batches.append(batch)
+            if window_end is not None:
+                batches = [[item for item in batch if item[0] <= window_end] for batch in batches]
+
+            positions = [0] * len(sensors)
+            for timestamp in sorted({item[0] for batch in batches for item in batch}):
+                for i, batch in enumerate(batches):
+                    if positions[i] < len(batch) and batch[positions[i]][0] == timestamp:
+                        values[i] = batch[positions[i]][1]
+                        positions[i] += 1
+                yield timestamp, list(values)
+                count += 1
+                if limit is not None and count >= limit:
+                    return
+
+            if window_end is None:
+                return
+            cursor = done = window_end
 
     # noinspection PyProtectedMember
     def get_csv(self, sensor_names: Sequence[str], buffer_function: Callable = None,
                 include_header: bool = False, **timespan_kwargs):
+        """
+        CSV with a row for each timestamp of any of the sensors, see `_export_rows`. If `buffer_function` is given,
+        the CSV is passed to it in parts, otherwise it is returned.
+        Supported arguments for the time span are `since`, `until` (excluded), and `limit`.
+        """
 
         if buffer_function is None:
             buffer = BytesIO()
@@ -342,6 +406,7 @@ class LMDBSensorStorage(Sensors):
             buffer.seek(0)
             return buffer.read()
         else:
+            timespan_kwargs = self._export_kwargs(timespan_kwargs)
             self._check_sensor_names(sensor_names)
             sensors = [self[s] for s in sensor_names]
             if include_header:
@@ -359,26 +424,37 @@ class LMDBSensorStorage(Sensors):
                 header_line = f"{';'.join(tmp)}\n".encode()
                 buffer_function(header_line)
 
-            keys = self._get_common_keys(sensor_names, **timespan_kwargs)
-            values = [s.values(at_timestamps=iter(keys),
-                               at_timestamps_only=True,
-                               **timespan_kwargs) for s in sensors]
-            for idx, key in enumerate(keys):
+            # fields of sensors without value yet, struct values have several fields
+            empty = [';' * (s._value_packer._num_fields - 1) if isinstance(s._value_packer, StructPacker) else ''
+                     for s in sensors]
+            lines = []
+            for key, values in self._export_rows(sensors, **timespan_kwargs):
                 tmp = [as_local_datetime(key).isoformat(), ]
-                for k, i in enumerate(values):
-                    if isinstance(sensors[k]._value_packer, StructPacker):
-                        tmp.append(';'.join([str(j) for j in i[idx]]))
+                for k, value in enumerate(values):
+                    if value is None:
+                        tmp.append(empty[k])
+                    elif isinstance(sensors[k]._value_packer, StructPacker):
+                        tmp.append(';'.join([str(j) for j in value]))
                     elif isinstance(sensors[k]._value_packer, StringPacker):
-                        tmp.append(f'"{i[idx]}"')
+                        tmp.append(f'"{value}"')
                     else:
-                        tmp.append(str(i[idx]))
-                line = f"{';'.join(tmp)}\n"
-                buffer_function(line.encode())
+                        tmp.append(str(value))
+                lines.append(f"{';'.join(tmp)}\n")
+                if len(lines) >= self.EXPORT_WRITE_ROWS:
+                    buffer_function(''.join(lines).encode())
+                    lines = []
+            if lines:
+                buffer_function(''.join(lines).encode())
 
-    # noinspection PyProtectedMember
     def get_json(self, sensor_names: Iterable[str],
                  buffer_function: Callable = None,
                  **timespan_kwargs) -> Union[str, None]:
+        """
+        JSON with the timestamps of any of the sensors and the values of each sensor at these timestamps, see
+        `_export_rows`, missing values are null. If `buffer_function` is given, the JSON is passed to it in parts,
+        otherwise it is returned.
+        Supported arguments for the time span are `since`, `until` (excluded), and `limit`.
+        """
 
         if not buffer_function:
             buffer = BytesIO()
@@ -386,16 +462,37 @@ class LMDBSensorStorage(Sensors):
             buffer.seek(0)
             return buffer.read()
         else:
+            timespan_kwargs = self._export_kwargs(timespan_kwargs)
             self._check_sensor_names(sensor_names)
-            keys = self._get_common_keys(sensor_names, **timespan_kwargs)
-    
+            sensors = [self[s] for s in sensor_names]
+
+            # The timestamps are streamed, while the values are collected, since they follow all timestamps.
+            # Floats are collected as array of doubles, which needs much less memory than a list of floats,
+            # missing values as NaN, which are written as null like NaN values.
+            columns = [array('d') if s.data_format == 'f' else [] for s in sensors]
             buffer_function('{"Time":['.encode())
-            buffer_function(','.join([f'"{as_local_datetime(key).isoformat()}"' for key in keys]).encode())
+            times = []
+            separator = ''
+            for key, values in self._export_rows(sensors, **timespan_kwargs):
+                times.append(f'"{as_local_datetime(key).isoformat()}"')
+                for column, value in zip(columns, values):
+                    column.append(math.nan if value is None and isinstance(column, array) else value)
+                if len(times) >= self.EXPORT_WRITE_ROWS:
+                    buffer_function((separator + ','.join(times)).encode())
+                    separator = ','
+                    times = []
+            if times:
+                buffer_function((separator + ','.join(times)).encode())
             buffer_function(']'.encode())
-            for sensor_name in sensor_names:
-                buffer_function(f',"{sensor_name}":{{"values":'.encode())
-                values = self[sensor_name].values(at_timestamps=iter(keys), **timespan_kwargs)
-                buffer_function(simplejson.dumps(values, ignore_nan=True).encode())
+
+            for sensor_name, column in zip(sensor_names, columns):
+                buffer_function(f',{json.dumps(sensor_name)}:{{"values":['.encode())
+                separator = ''
+                for i in range(0, len(column), self.EXPORT_WRITE_ROWS):
+                    part = simplejson.dumps(list(column[i:i + self.EXPORT_WRITE_ROWS]), ignore_nan=True)[1:-1]
+                    buffer_function((separator + part).encode())
+                    separator = ', '
+                buffer_function(']'.encode())
                 metadata = self[sensor_name].metadata.as_dict()
                 if metadata:
                     buffer_function(',"metadata":'.encode())

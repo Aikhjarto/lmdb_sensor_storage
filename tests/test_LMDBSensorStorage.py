@@ -1,5 +1,6 @@
 import json
 import unittest
+from unittest import mock
 from datetime import datetime, timedelta
 from lmdb_sensor_storage import Sensor, LMDBSensorStorage
 # noinspection PyProtectedMember
@@ -293,6 +294,66 @@ class TestcaseLMDBSensorStorageGetCSV(DataMixin, unittest.TestCase):
                     b'2000-01-01T00:00:11+01:00;3.0;"test with ;"\n'
                     b'2000-01-01T00:00:15+01:00;4.0;"test with ;"\n')
         self.assertEqual(data_ref, data)
+
+
+
+class TestcaseExport(EmptyDatabaseMixin, unittest.TestCase):
+    """Exports of sensors with different times, read in windows of different sizes"""
+
+    def setUp(self):
+        super().setUp()
+        self.t0 = datetime(2024, 1, 1).astimezone()
+        self.db = LMDBSensorStorage(self.mdb_filename)
+        self.write('a', range(0, 41, 2), lambda i: float(i))
+        self.write('b', range(5, 31, 3), lambda i: float(100 + i))  # starts and ends inside of a
+        self.write('c', (33, 34), lambda i: float(200 + i))  # only at the end
+        Sensor(self.mdb_filename, 's', data_format='ff').write_values([self.t(1), self.t(20)], [(1., 2.), (3., 4.)])
+
+    def t(self, seconds):
+        return self.t0 + timedelta(seconds=seconds)
+
+    def write(self, name, seconds, value):
+        Sensor(self.mdb_filename, name).write_values([self.t(i) for i in seconds], [value(i) for i in seconds])
+
+    def reference(self, names, since=None, until=None, limit=None):
+        """rows with the most recent value of each sensor at or before each timestamp of any sensor"""
+        items = [self.db[name].items() for name in names]
+        timestamps = sorted({t for sensor_items in items for t, _ in sensor_items
+                             if (since is None or t >= since) and (until is None or t < until)})
+        rows = []
+        for t in timestamps[:limit]:
+            rows.append((t, [([v for ts, v in sensor_items if ts <= t] or [None])[-1] for sensor_items in items]))
+        return rows
+
+    def test_rows(self):
+        names = ['a', 'b', 'c', 's']
+        for window in (1, 2, 3, 7, 50000):
+            for since, until, limit in ((None, None, None), (self.t(6), None, None), (None, self.t(30), None),
+                                        (self.t(7), self.t(33), None), (self.t(3), None, 5), (self.t(41), None, None)):
+                with self.subTest(window=window, since=since, until=until, limit=limit), \
+                        mock.patch.object(self.db, 'EXPORT_WINDOW', window):
+                    sensors = [self.db[name] for name in names]
+                    rows = list(self.db._export_rows(sensors, since=since, until=until, limit=limit))
+                    self.assertEqual(self.reference(names, since, until, limit), rows)
+
+    def test_csv_with_missing_values(self):
+        with mock.patch.object(self.db, 'EXPORT_WINDOW', 2):
+            csv = self.db.get_csv(['c', 's', 'b'], include_header=True, until=self.t(6)).decode().splitlines()
+        self.assertEqual(['"Time";"c";"s Field 0";"s Field 1";"b"',
+                          f'{self.t(1).isoformat()};;1.0;2.0;',
+                          f'{self.t(5).isoformat()};;1.0;2.0;105.0'], csv)
+
+    def test_json_with_missing_values(self):
+        with mock.patch.object(self.db, 'EXPORT_WINDOW', 2), mock.patch.object(self.db, 'EXPORT_WRITE_ROWS', 2):
+            data = json.loads(self.db.get_json(['c', 'a', 's'], since=self.t(30), until=self.t(35)))
+        self.assertEqual([self.t(i).isoformat() for i in (30, 32, 33, 34)], data['Time'])
+        self.assertEqual([None, None, 233.0, 234.0], data['c']['values'])
+        self.assertEqual([30.0, 32.0, 32.0, 34.0], data['a']['values'])
+        self.assertEqual([[3.0, 4.0]] * 4, data['s']['values'])
+
+    def test_unsupported_arguments(self):
+        with self.assertRaises(ValueError):
+            self.db.get_csv(['a'], decimate_to_s=60)
 
 
 if __name__ == "__main__":
