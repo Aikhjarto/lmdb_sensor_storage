@@ -124,6 +124,31 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
         db.delete_entries(since=dates[8])
         self.assertEqual(db.keys(), dates[:2])
 
+    def test_slices(self):
+        db = TimestampBytesDB(self.mdb_filename, 's')
+        dates = [datetime(2024, 1, 1, 0, i, tzinfo=timezone.utc) for i in range(10)]
+        for i, date in enumerate(dates):
+            db.write_value(date, str(i).encode())
+
+        # like Python slices, the end is excluded
+        self.assertEqual([b'2', b'3', b'4'], db[dates[2]:dates[5]])
+        self.assertEqual([b'8', b'9'], db[dates[8]:])
+        self.assertEqual([b'0', b'1'], db[:dates[2]])
+        self.assertEqual(10, len(db[:]))
+        with self.assertRaises(NotImplementedError):
+            db[dates[2]:dates[5]:2]
+
+        del db[dates[2]:dates[5]]
+        self.assertEqual(dates[:2] + dates[5:], db.keys())
+        del db[dates[8]:]
+        self.assertEqual(dates[:2] + dates[5:8], db.keys())
+        with self.assertRaises(NotImplementedError):
+            del db[dates[2]:dates[5]:2]
+        del db[:]
+        self.assertEqual([], db.keys())
+        # deleting from an empty db does nothing
+        del db[:]
+
     def test_read_does_not_block_writer(self):
         db = TimestampBytesDB(self.mdb_filename, 'r')
         dates = [datetime(2024, 1, 1, 0, i, tzinfo=timezone.utc) for i in range(3)]

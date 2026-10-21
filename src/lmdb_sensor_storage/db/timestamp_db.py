@@ -81,7 +81,15 @@ class TimestampBytesDB(LMDBDict):
 
     def delete_entries(self,
                        since: Union[str, datetime, None] = None,
-                       until: Union[str, datetime, None] = None) -> bool:
+                       until: Union[str, datetime, None] = None,
+                       endpoint: bool = True) -> bool:
+        """
+        Delete entries from `since` until `until`, which is included if `endpoint` is True.
+        If `since` or `until` is None, entries are deleted from the first or until the last entry.
+        """
+
+        if not len(self):
+            return False
 
         since = as_datetime(since, none_ok=True)
         until = as_datetime(until, none_ok=True)
@@ -93,6 +101,7 @@ class TimestampBytesDB(LMDBDict):
 
         if until is None:
             until = self.get_last_timestamp()
+            endpoint = True
         elif until < self.get_first_timestamp():
             return False
 
@@ -111,7 +120,8 @@ class TimestampBytesDB(LMDBDict):
                     # Hint: c.delete() return True on success and iterates one item further
                     # End is deteced when 'key' becomes an empty bytearray.
                     key = c.key()
-                    while key and self._key_packer.unpack(key) <= until:
+                    while key and (self._key_packer.unpack(key) < until or
+                                   (endpoint and self._key_packer.unpack(key) == until)):
                         # loop until no more key before 'until' exists or deletion fails
                         if not c.delete():
                             raise IOError
@@ -460,22 +470,29 @@ class TimestampBytesDB(LMDBDict):
         self.write_value(date, value, only_if_value_changed=False)
 
     def __getitem__(self, key: datetime):
+        """
+        Value at timestamp `key`, or for a slice `db[since:until]` the values from `since` until `until`,
+        excluding `until` like Python slices.
+        """
         if isinstance(key, slice):
-            if key.start is None and key.stop is None and key.step is None:
+            if key.step is not None:
+                raise NotImplementedError('slices with step are not supported')
+            if key.start is None and key.stop is None:
                 # use faster (unconditioned) loop from super class
                 return super().__getitem__(key)
-            else:
-                if key.step is None:
-                    raise NotImplementedError
-                return self.values(since=key.start, until=key.stop)
+            return self.values(since=key.start, until=key.stop)
         else:
             return super().__getitem__(key)
 
     def __delitem__(self, key: datetime):
+        """
+        Delete the value at timestamp `key`, or for a slice `del db[since:until]` the values from `since` until
+        `until`, excluding `until` like Python slices.
+        """
         if isinstance(key, slice):
-            if key.step is None:
-                raise NotImplementedError
-            return self.delete_entries(since=key.start, until=key.stop)
+            if key.step is not None:
+                raise NotImplementedError('slices with step are not supported')
+            return self.delete_entries(since=key.start, until=key.stop, endpoint=False)
         else:
             return super().__delitem__(key)
 
