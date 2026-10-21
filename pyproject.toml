@@ -10,9 +10,11 @@ authors = [
 description = "Efficient storage for sensor data using lmdb as backend"
 readme = "README.md"
 requires-python = ">=3.7"
-license = {file = "LICENSE"}
+# Note: the SPDX string format needs setuptools>=77, which needs Python>=3.9 to build
+license = {text = "GPL-3.0-or-later"}
 classifiers = [
     "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
 ]
 dependencies = [
     "lmdb",
