@@ -12,6 +12,7 @@ import math
 import secrets
 import socket
 import socketserver
+import struct
 import urllib.parse
 import traceback
 from threading import Lock
@@ -80,6 +81,8 @@ class MDBServer(socketserver.ThreadingTCPServer):
 
 
 class MDBRequestHandler(HTTPRequestHandler):
+    # maximum size of the body of POST requests
+    MAX_BODY_LENGTH = 1024 * 1024
     # typehints
     query_dict: Dict[str, Any]
     server: MDBServer
@@ -577,73 +580,90 @@ class MDBRequestHandler(HTTPRequestHandler):
             super().do_GET()
 
     # noinspection PyPep8Naming
+    def read_body(self) -> Union[str, None]:
+        """
+        Read the request body according to Content-Length.
+        If the body is invalid or too large, an error is sent and None is returned.
+        """
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+        except ValueError:
+            self.send_error(400, message='Invalid Content-Length')
+            return None
+        if length < 0:
+            self.send_error(400, message='Invalid Content-Length')
+            return None
+        if length > self.MAX_BODY_LENGTH:
+            self.send_error(413, message=f'Request body exceeds {self.MAX_BODY_LENGTH} bytes')
+            return None
+        try:
+            return self.rfile.read(length).decode()
+        except UnicodeDecodeError:
+            self.send_error(400, message='Request body is not UTF-8')
+            return None
+
+    def send_message_page(self, message: str):
+        """Send a short HTML page showing `message`, which reloads the current URL after one second."""
+        html = html_template.format(head='<title>Sensor data viewer</title>\n<meta http-equiv="refresh" content="1" />',
+                                    body=escape(message)).encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html')
+        self.send_header('Content-Length', str(len(html)))
+        self.send_header('Set-Cookie', self.cookie)
+        self.end_headers()
+        self.wfile.write(html)
+
     def do_POST(self):
-        if self.path == '/add_sample':
-            timestamp, value, sensor_name = self.rfile.read().decode().split(';', 3)
-            self.server.sensor_storage[sensor_name][as_datetime(timestamp)] = float(value)
-        elif self.path.startswith('/time'):
+        self.update_session()
 
-            payload = self.rfile.read(int(self.headers.get('content-length')))
-            d = urllib.parse.parse_qs(payload.decode())
-            timestamp = d.get('timestamp')
+        body = self.read_body()
+        if body is None:
+            return
 
+        url = urllib.parse.urlsplit(self.path)
+        query = urllib.parse.parse_qs(url.query)
+
+        if url.path == '/add_sample':
+            # body is "timestamp;value;sensor_name"
             try:
-                timestamp = as_datetime(timestamp[0])
-                assert timestamp is not None
-            except (IndexError, TypeError, ValueError, AssertionError):
-                msg = f'parameter "timestamp"={timestamp} is not a valid ISO formatted timestamp'
-                self.send_error(400, message=msg)  # bad request
-                self.end_headers()
+                timestamp, value, sensor_name = body.split(';', 2)
+                self.server.sensor_storage[sensor_name][as_datetime(timestamp)] = float(value)
+            except (ValueError, TypeError, struct.error) as e:
+                self.send_error(400, message=f'Invalid sample "{body[:100]}": {e}')
+                return
+            self.send_response(204)
+            self.send_header('Set-Cookie', self.cookie)
+            self.end_headers()
+
+        elif url.path == '/time':
+            form = urllib.parse.parse_qs(body)
+            timestamp = form.get('timestamp', [''])[0]
+            try:
+                timestamp = as_datetime(timestamp) if timestamp else None
+            except ValueError:
+                self.send_error(400, message=f'parameter "timestamp"={timestamp} is not a valid ISO formatted timestamp')
                 return
 
-            if d.get('short') is not None:
-                # add note
-                short = str(d['short'][0])
+            if 'delete' in query:
+                if timestamp is None:
+                    self.send_error(400, message='parameter "timestamp" is required to delete a note')
+                    return
+                try:
+                    del self.server.sensor_storage.notes[timestamp]
+                except KeyError:
+                    self.send_error(404, message=f'No note at {timestamp}')
+                    return
+                self.send_message_page('Note was deleted')
 
-                if d.get('long') is not None:
-                    long = str(d['long'][0])
-                else:
-                    long = None
-
-                self.server.sensor_storage.notes.add_note(short, long=long if long else None)
-
-                self.send_response(200)
-                html = r"""<html><head><title>Gauge reader</title>
-<meta http-equiv="refresh" content="1" />
-<meta charset="utf-8" />
-</head><body>
-{body}
-</body></html>
-"""
-                html = html.format(body='Note was written').encode()
-                self.send_header('Content-Length', str(len(html)))
-                self.send_header('Set-Cookie', self.cookie)
-                self.end_headers()
-                self.wfile.write(html)
-
-            elif self.query_dict.get('delete') is not None:
-                # delete note
-                del self.server.sensor_storage.notes[timestamp]
-
-                self.send_response(200)
-                html = r"""<html><head><title>Gauge reader</title>
-                <meta http-equiv="refresh" content="1" />
-                <meta charset="utf-8" />
-                </head><body>
-                {body}
-                </body></html>
-                """
-                html = html.format(body='Note was deleted').encode()
-                self.send_header('Content-Length', str(len(html)))
-                self.send_header('Set-Cookie', self.cookie)
-                self.end_headers()
-                self.wfile.write(html)
+            elif form.get('short'):
+                # without timestamp, the note is added at the current time
+                self.server.sensor_storage.notes.add_note(form['short'][0],
+                                                          long=form.get('long', [None])[0],
+                                                          timestamp=timestamp)
+                self.send_message_page('Note was written')
 
             else:
-                msg = 'parameter "add" or "delete" must be given'
-                self.send_error(400, message=msg)  # bad request
-                self.end_headers()
-                return
+                self.send_error(400, message='parameter "short" or "delete" must be given')
 
         else:
             self.send_error(404)

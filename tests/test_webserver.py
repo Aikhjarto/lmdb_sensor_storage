@@ -216,6 +216,46 @@ class UnitTests(unittest.TestCase):
         sid = self.get_json(limit=10**9).cookies['sid']
         self.assertEqual(self.server.MAX_LIMIT, self.server.sessions[sid]['query_dict']['limit'])
 
+    def post(self, path, data):
+        return requests.request('POST', f'{self.base_url}{path}', data=data, timeout=10)
+
+    def test_post_add_and_delete_note(self):
+        notes = Notes(self.mdb_filename)
+        timestamp = datetime.datetime(2024, 1, 2, 3, 4, 5, 678901)
+        req = self.post('/time', {'timestamp': timestamp.isoformat(), 'short': 'brief', 'long': 'longer'})
+        self.assertEqual(200, req.status_code)
+        self.assertEqual([(timestamp, {'short': 'brief', 'long': 'longer'})], notes.items())
+
+        # delete with the timestamp as shown in the form
+        req = self.post('/time?delete=yes', {'timestamp': str(notes.keys()[0])})
+        self.assertEqual(200, req.status_code)
+        self.assertEqual([], notes.items())
+
+        # deleting again fails
+        self.assertEqual(404, self.post('/time?delete=yes', {'timestamp': str(timestamp)}).status_code)
+
+    def test_post_note_without_timestamp(self):
+        before = datetime.datetime.now()
+        self.assertEqual(200, self.post('/time', {'timestamp': '', 'short': 'now'}).status_code)
+        timestamp, note = Notes(self.mdb_filename).items()[0]
+        self.assertGreaterEqual(timestamp, before)
+        self.assertEqual({'short': 'now'}, note)
+
+    def test_post_note_invalid(self):
+        self.assertEqual(400, self.post('/time', {'timestamp': 'yesterday', 'short': 'x'}).status_code)
+        self.assertEqual(400, self.post('/time', {'timestamp': '2024-01-01T00:00'}).status_code)
+        self.assertEqual(400, self.post('/time?delete=yes', {}).status_code)
+        self.assertEqual([], Notes(self.mdb_filename).items())
+
+    def test_post_add_sample(self):
+        timestamp = self.reference_date + datetime.timedelta(seconds=1)
+        req = self.post('/add_sample', f'{timestamp.isoformat()};42.5;sensor1')
+        self.assertEqual(204, req.status_code)
+        self.assertEqual(42.5, Sensor(self.mdb_filename, 'sensor1')[timestamp])
+
+        self.assertEqual(400, self.post('/add_sample', 'garbage').status_code)
+        self.assertEqual(400, self.post('/add_sample', f'{timestamp.isoformat()};abc;sensor1').status_code)
+
     def test_html_escaping(self):
         payload = '</script><img src=x onerror=alert(1)>'
         s = Sensor(mdb_filename=self.mdb_filename, sensor_name=payload, data_format='f')
