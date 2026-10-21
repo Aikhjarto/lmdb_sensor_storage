@@ -40,6 +40,9 @@ def float_nan(x):
 
 
 def import_wunderground_data(mdb_filename: str, data: dict):
+    if not data.get('observations'):
+        logger.warning('No observations to import to %s', mdb_filename)
+        return
     logger.info('Importing %d samples to %s', len(data['observations']), mdb_filename)
 
     timestamps = [datetime.fromtimestamp(d['epoch']) for d in data['observations']]
@@ -52,20 +55,21 @@ def import_wunderground_data(mdb_filename: str, data: dict):
 
     sensor = Sensor(mdb_filename, f'wind_speed_{station_id}')
     sensor.write_values(timestamps, [float_nan(d['metric']['windspeedAvg']) for d in data['observations']])
-    sensor.metadata.update({'label': f'Windböen {station_id}',
+    sensor.metadata.update({'label': f'Windgeschwindigkeit {station_id}',
                             'unit': 'm/s'})
 
     sensor = Sensor(mdb_filename, f'wind_gust_{station_id}')
     sensor.write_values(timestamps, [float_nan(d['metric']['windgustHigh']) for d in data['observations']])
-    sensor.metadata.update({'label': f'Windgeschwindigkeit {station_id}',
+    sensor.metadata.update({'label': f'Windböen {station_id}',
                             'unit': 'm/s'})
 
 
-wunderground_url_template = 'https://api.weather.com/v2/pws/observations/all/1day?' \
-                            'stationId={station_id}&format=json&units=m&numericPrecision=decimal&apiKey={api_key}'
+wunderground_url = 'https://api.weather.com/v2/pws/observations/all/1day'
 
-template_history = 'https://api.weather.com/v2/pws/history/all?' \
-                   'stationId={station_id}&format=json&units=m&numericPrecision=decimal&date={date}&apiKey={api_key}'
+wunderground_url_history = 'https://api.weather.com/v2/pws/history/all'
+
+# timeout in seconds for requests to wunderground
+REQUEST_TIMEOUT = 30
 
 
 def import_wunderground_station(mdb_filename, station_id, api_key, date=None):
@@ -82,22 +86,37 @@ def import_wunderground_station(mdb_filename, station_id, api_key, date=None):
         If not given, 5-minute date for the current day is fetched.
     """
 
+    params = {'stationId': station_id,
+              'format': 'json',
+              'units': 'm',
+              'numericPrecision': 'decimal',
+              'apiKey': api_key}
     if date:
-        if isinstance(date, str) and len(date) != 8:
-            d = fromisoformat(date)
-            date = d.strftime('%Y%m%d')
-        src = template_history.format(station_id=station_id, api_key=api_key, date=date)
+        if isinstance(date, datetime):
+            date = date.strftime('%Y%m%d')
+        elif len(date) != 8:
+            date = fromisoformat(date).strftime('%Y%m%d')
+        params['date'] = date
+        src = wunderground_url_history
     else:
-        src = wunderground_url_template.format(station_id=station_id, api_key=api_key)
-    return import_wunderground(mdb_filename, src)
+        src = wunderground_url
+    return import_wunderground(mdb_filename, src, params=params)
 
 
-def import_wunderground(mdb_filename, src):
-    """Import wunderground data from a pre-downloaded *.json file or from a URL"""
+def import_wunderground(mdb_filename, src, params=None):
+    """
+    Import wunderground data from a pre-downloaded *.json file or from a URL.
+    `params` are the query parameters for the URL, which must contain the API key.
+    """
 
     if src.startswith('http'):
+        # don't log params, since they contain the API key
         logger.info('Requesting URL %s', src)
-        resp = requests.get(src)
+        try:
+            resp = requests.get(src, params=params, timeout=REQUEST_TIMEOUT)
+        except requests.RequestException as e:
+            # Note: the exception message may contain the URL, including the API key
+            raise RuntimeError(f'Request to {src} failed with {type(e).__name__}') from None
         if not resp.ok:
             msg = f'Request fails with {resp.status_code}, {resp.reason}; {resp.content.decode()}'
             raise RuntimeError(msg)
@@ -110,7 +129,7 @@ def import_wunderground(mdb_filename, src):
         json_data = json.loads(resp.content)
 
         if 'observations' not in json_data:
-            raise RuntimeError('Did not received ')
+            raise RuntimeError(f'Response from {src} contains no observations')
 
     else:
         logger.info('Opening file %s for imports', src)
