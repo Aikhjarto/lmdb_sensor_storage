@@ -1,5 +1,5 @@
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import os
 import json
@@ -45,7 +45,7 @@ def import_wunderground_data(mdb_filename: str, data: dict):
         return
     logger.info('Importing %d samples to %s', len(data['observations']), mdb_filename)
 
-    timestamps = [datetime.fromtimestamp(d['epoch']) for d in data['observations']]
+    timestamps = [datetime.fromtimestamp(d['epoch'], tz=timezone.utc) for d in data['observations']]
     station_id = data['observations'][0]['stationID']
 
     sensor = Sensor(mdb_filename, f'outside_temperature_{station_id}')

@@ -28,12 +28,12 @@ class TestImportCSV(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(0, self.import_csv('--sensor-name', 'imported'))
         s = Sensor(self.mdb_filename, 'imported')
         self.assertEqual('f', s.data_format)
-        self.assertEqual([(datetime(2024, 1, 1, 0, minute), minute + 0.5) for minute in range(5)], s.items())
+        self.assertEqual([(datetime(2024, 1, 1, 0, minute).astimezone(), minute + 0.5) for minute in range(5)], s.items())
 
     def test_sensor_name_required(self):
         self.assertNotEqual(0, self.import_csv())
 
     def test_read_csv_since_until(self):
         _, dates, values = read_csv(self.csv_filename, since='2024-01-01T00:01', until='2024-01-01T00:03')
-        self.assertEqual([datetime(2024, 1, 1, 0, minute) for minute in (1, 2, 3)], dates)
+        self.assertEqual([datetime(2024, 1, 1, 0, minute).astimezone() for minute in (1, 2, 3)], dates)
         self.assertEqual([1.5, 2.5, 3.5], values)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import numpy as np
 
 # NAGIOS return codes :
@@ -116,7 +116,7 @@ def main():
 
     # https://assets.nagios.com/downloads/nagioscore/docs/nagioscore/3/en/pluginapi.html
     # noinspection PyPep8Naming
-    SERVICEPERFDATA = f'|age={int((datetime.now()-timestamp).total_seconds())}s;' \
+    SERVICEPERFDATA = f'|age={int((datetime.now(timezone.utc)-timestamp).total_seconds())}s;' \
                       f'{int(timedelta_warning.total_seconds())};{int(timedelta_critical.total_seconds())}'
 
     if sensors_with_nan:
@@ -124,11 +124,11 @@ def main():
         exit(CRITICAL)
 
     # noinspection PyPep8Naming
-    SERVICEOUTPUT = f'Last sensor update: {timestamp}'
-    if timestamp < datetime.now()-abs(timedelta_critical):
+    SERVICEOUTPUT = f'Last sensor update: {timestamp.astimezone().replace(tzinfo=None)}'
+    if timestamp < datetime.now(timezone.utc)-abs(timedelta_critical):
         print(f'CRITICAL - ' + SERVICEOUTPUT + SERVICEPERFDATA)
         exit(CRITICAL)
-    elif timestamp < datetime.now()-abs(timedelta_warning):
+    elif timestamp < datetime.now(timezone.utc)-abs(timedelta_warning):
         print(f'WARNING - ' + SERVICEOUTPUT + SERVICEPERFDATA)
         exit(WARNING)
     else:

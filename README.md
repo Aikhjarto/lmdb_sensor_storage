@@ -145,6 +145,13 @@ Systemd service and timer files for the Wunderground import, the MQTT subscriber
 Adapt `User=`, the Python interpreter, and the settings file before installing them.
 
 
+## Timestamps and timezones
+Timestamps are stored as microseconds since epoch, i.e. in UTC, and returned as timezone-aware `datetime` objects in
+UTC. Timestamps without timezone, e.g. naive `datetime` objects, ISO formatted strings without offset, or the `Time` of
+Tasmota, are interpreted as local time.
+The webserver shows local time, and CSV and JSON output contain local time with offset, e.g.
+`2024-10-27T02:30:00+01:00`, so times during the switch from daylight saving time are unambiguous.
+
 ## DB layout
 * One mdb-file for all sensors.
 * Sub-DB:

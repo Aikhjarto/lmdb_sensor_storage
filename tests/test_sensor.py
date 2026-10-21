@@ -1,7 +1,7 @@
 import os
 import unittest
 from unittest import mock
-from datetime import datetime
+from datetime import datetime, timezone
 import numpy as np
 
 from lmdb_sensor_storage import Sensor, LMDBSensorStorage
@@ -16,7 +16,7 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_guessing(self):
         s = Sensor(self.mdb_filename, 'k')
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
         data = 0.0
         self.assertEqual(None, s.data_format)
         s.write_value(date, data)
@@ -25,7 +25,7 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_nan_guessing(self):
         s = Sensor(self.mdb_filename, 'test_nan_float')
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
         data = float('nan')
         s.write_value(date, data)
         self.assertEqual('f', s.data_format)
@@ -33,7 +33,7 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_nan_string_guessing(self):
         s = Sensor(self.mdb_filename, 'test_nan_string')
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
         data = 'nan'
         s.write_value(date, data)
         self.assertEqual('f', s.data_format)
@@ -41,14 +41,14 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_write_nan_on_float(self):
         s = Sensor(self.mdb_filename,'test_write_nan_on_float', data_format='f')
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
         s.write_value(date, 'nan')
         self.assertTrue(np.isnan(s.get_last_value()))
 
     def test_packed_write_read(self):
         s = Sensor(self.mdb_filename, 'a', data_format='fhf')
         data = (1.0, 4, -3)
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
         s.write_value(date, data)
         self.assertEqual(s.values(), [data, ])
         self.assertEqual(s.keys(), [date, ])
@@ -64,7 +64,7 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
     def test_write_read_float(self):
         s = Sensor(self.mdb_filename, 'a')
         data = 1.0
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
         self.assertTrue(s.write_value(date, data))
         self.assertEqual([date, ], s.keys())
         self.assertEqual([data, ], s.values())
@@ -79,14 +79,14 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(s.statistics['entries'], 3)
 
         # test for only_if_changed
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
         self.assertFalse(s.write_value(date, 3, only_if_value_changed=True))
         self.assertEqual(s.statistics['entries'], 3)
 
     def test_write_read_float_decimate(self):
         s = Sensor(self.mdb_filename, 'b')
 
-        dates = [datetime.fromtimestamp(i) for i in range(100)]
+        dates = [datetime.fromtimestamp(i, tz=timezone.utc) for i in range(100)]
         values = list(range(100))
         s.write_values(dates, values)
         self.assertEqual(s.items(), list(zip(dates, values)))
@@ -111,10 +111,10 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_write_read_samples_float(self):
         s = Sensor(self.mdb_filename, 'c')
-        dates = [datetime.fromtimestamp(1),
-                 datetime.fromtimestamp(2),
-                 datetime.fromtimestamp(3),
-                 datetime.fromtimestamp(4)]
+        dates = [datetime.fromtimestamp(1, tz=timezone.utc),
+                 datetime.fromtimestamp(2, tz=timezone.utc),
+                 datetime.fromtimestamp(3, tz=timezone.utc),
+                 datetime.fromtimestamp(4, tz=timezone.utc)]
         values = [18, 17, 16, 15]
 
         s.write_values(dates, values)
@@ -122,10 +122,10 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_write_read_samples_packed(self):
         s = Sensor(self.mdb_filename, 'e', data_format='fh')
-        dates = [datetime.fromtimestamp(1),
-                 datetime.fromtimestamp(2),
-                 datetime.fromtimestamp(3),
-                 datetime.fromtimestamp(4)]
+        dates = [datetime.fromtimestamp(1, tz=timezone.utc),
+                 datetime.fromtimestamp(2, tz=timezone.utc),
+                 datetime.fromtimestamp(3, tz=timezone.utc),
+                 datetime.fromtimestamp(4, tz=timezone.utc)]
         values = [(18., 18), (17., 17), (16., 16), (15.0, 15)]
 
         s.write_values(dates, values)
@@ -143,15 +143,15 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
         s.close_file()
         self.assertEqual(manager.handles, {})
 
-        self.assertEqual([], s.items(decimate_to_s=80, since=datetime.now()))
+        self.assertEqual([], s.items(decimate_to_s=80, since=datetime.now(timezone.utc)))
         self.assertEqual([], s.items(limit=3))
 
     def test_copy_to(self):
         s = Sensor(self.mdb_filename, 'j1', data_format='fh')
-        dates = [datetime.fromtimestamp(1),
-                 datetime.fromtimestamp(2),
-                 datetime.fromtimestamp(3),
-                 datetime.fromtimestamp(4)]
+        dates = [datetime.fromtimestamp(1, tz=timezone.utc),
+                 datetime.fromtimestamp(2, tz=timezone.utc),
+                 datetime.fromtimestamp(3, tz=timezone.utc),
+                 datetime.fromtimestamp(4, tz=timezone.utc)]
         values = [(18., 18), (17., 17), (16., 16), (15.0, 15)]
 
         s.write_values(dates, values)
@@ -184,7 +184,7 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
 class TestcaseSensorConcurrency(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_construct_without_write_transaction(self):
-        Sensor(self.mdb_filename, 'k').write_value(datetime(2024, 1, 1), 1.0)
+        Sensor(self.mdb_filename, 'k').write_value(datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0)
 
         # constructing and reading a sensor must not wait for writers, e.g. other MQTT subscribers
         with mock.patch.object(manager, 'get_transaction', wraps=manager.get_transaction) as get_transaction:
@@ -196,10 +196,10 @@ class TestcaseSensorConcurrency(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_recreate_after_delete(self):
         storage = LMDBSensorStorage(self.mdb_filename)
-        Sensor(self.mdb_filename, 'k').write_value(datetime(2024, 1, 1), 1.0)
+        Sensor(self.mdb_filename, 'k').write_value(datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0)
         del storage['k']
-        Sensor(self.mdb_filename, 'k').write_value(datetime(2024, 1, 2), 2.0)
-        self.assertEqual(Sensor(self.mdb_filename, 'k').items(), [(datetime(2024, 1, 2), 2.0)])
+        Sensor(self.mdb_filename, 'k').write_value(datetime(2024, 1, 2, tzinfo=timezone.utc), 2.0)
+        self.assertEqual(Sensor(self.mdb_filename, 'k').items(), [(datetime(2024, 1, 2, tzinfo=timezone.utc), 2.0)])
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import json
 import re
 import struct
@@ -38,13 +38,22 @@ class StringPacker(Packer):
         return x.decode()
 
 
+EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+MICROSECOND = timedelta(microseconds=1)
+
+
 class DatetimePacker(Packer):
+    """
+    Packs datetime objects as microseconds since epoch, so keys are sorted in time.
+    Unpacked datetime objects are timezone-aware in UTC.
+    Integer arithmetic ensures that packing an unpacked key results in the same key.
+    """
 
     def pack(self, d: datetime) -> bytes:
-        return struct.pack('!Q', int(as_datetime(d).timestamp() * 1e6))
+        return struct.pack('!Q', (as_datetime(d) - EPOCH) // MICROSECOND)
 
     def unpack(self, key: bytes) -> datetime:
-        return datetime.fromtimestamp(struct.unpack('!Q', key)[0] / 1e6)
+        return EPOCH + struct.unpack('!Q', key)[0] * MICROSECOND
 
 
 class JSONPacker(Packer):

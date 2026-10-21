@@ -3,23 +3,23 @@ import math
 # noinspection PyProtectedMember
 from lmdb_sensor_storage._parser import as_datetime
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from lmdb_sensor_storage.db.sensor_db import guess_format_string
 
 
 class TestDatetime(unittest.TestCase):
     def test_asdatetime_isoformat(self):
-        self.assertEqual(datetime(year=2023, month=1, day=2),
+        self.assertEqual(datetime(year=2023, month=1, day=2).astimezone(),
                          as_datetime('2023-01-02'))
 
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5).astimezone(),
                          as_datetime('2023-01-02T06:05'))
 
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54).astimezone(),
                          as_datetime('2023-01-02T06:05:54'))
 
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54, microsecond=1234),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54, microsecond=1234).astimezone(),
                          as_datetime('2023-01-02T06:05:54.001234'))
 
     def test_asdatetime_none(self):
@@ -29,38 +29,50 @@ class TestDatetime(unittest.TestCase):
             as_datetime(None, none_ok=False)
 
     def test_asdatetime_timestamp_seconds(self):
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=5, minute=5, second=54, tzinfo=timezone.utc),
                          as_datetime(1672635954))
 
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=5, minute=5, second=54, tzinfo=timezone.utc),
                          as_datetime(1672635954.0))
 
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=5, minute=5, second=54, tzinfo=timezone.utc),
                          as_datetime("1672635954s"))
 
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=5, minute=5, second=54, tzinfo=timezone.utc),
                          as_datetime("1672635954.0s"))
 
     def test_asdatetime_timestamp_milliseconds(self):
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=5, minute=5, second=54, tzinfo=timezone.utc),
                          as_datetime("1672635954000ms"))
 
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=5, minute=5, second=54, tzinfo=timezone.utc),
                          as_datetime("1672635954000.0ms"))
 
     def test_asdatetime_timestamp_microseconds(self):
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=5, minute=5, second=54, tzinfo=timezone.utc),
                          as_datetime("1672635954000000us"))
 
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=5, minute=5, second=54, tzinfo=timezone.utc),
                          as_datetime("1672635954000000.0us"))
 
     def test_asdatetime_timestamp_nanoseconds(self):
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=5, minute=5, second=54, tzinfo=timezone.utc),
                          as_datetime("1672635954000000000ns"))
 
-        self.assertEqual(datetime(year=2023, month=1, day=2, hour=6, minute=5, second=54),
+        self.assertEqual(datetime(year=2023, month=1, day=2, hour=5, minute=5, second=54, tzinfo=timezone.utc),
                          as_datetime("1672635954000000000.0ns"))
+
+    def test_asdatetime_timezones(self):
+        # result is always UTC
+        result = as_datetime(datetime(2023, 1, 2, 6, 5, tzinfo=timezone(timedelta(hours=1))))
+        self.assertEqual(timezone.utc, result.tzinfo)
+        self.assertEqual(datetime(2023, 1, 2, 5, 5, tzinfo=timezone.utc), result)
+
+        self.assertEqual(datetime(2023, 1, 2, 5, 5, tzinfo=timezone.utc), as_datetime('2023-01-02T06:05+01:00'))
+        self.assertEqual(timezone.utc, as_datetime('2023-01-02T06:05').tzinfo)
+
+        # naive datetime objects are local time
+        self.assertEqual(datetime(2023, 1, 2, 6, 5).astimezone(), as_datetime(datetime(2023, 1, 2, 6, 5)))
 
     def test_wrong_suffix(self):
         with self.assertRaises(ValueError):

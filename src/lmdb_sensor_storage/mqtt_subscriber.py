@@ -1,6 +1,6 @@
 #!/bin/env python3
 import paho.mqtt.client as mqtt
-from datetime import datetime
+from datetime import datetime, timezone
 from lmdb_sensor_storage.db.sensor_db import Sensor
 import json
 import argparse
@@ -8,7 +8,7 @@ import lmdb
 import logging
 import os
 import socket
-from lmdb_sensor_storage._parser import add_logging, setup_logging, add_mqtt, LoadFromFile, fromisoformat
+from lmdb_sensor_storage._parser import add_logging, setup_logging, add_mqtt, LoadFromFile, as_datetime
 import regex
 
 logger = logging.getLogger('lmdb_sensor_storage.mqtt_subscriber')
@@ -68,7 +68,7 @@ def _on_message(mqtt_client, userdata, message):
             logger.error(f'Cannot decode message {message.payload.decode()} as json')
             return
 
-        dates = [datetime.fromtimestamp(epoch) for epoch in data['epoch']]
+        dates = [datetime.fromtimestamp(epoch, tz=timezone.utc) for epoch in data['epoch']]
         del data['len']
         del data['epoch']
         for sensor_name in data.keys():
@@ -88,7 +88,7 @@ def _on_message(mqtt_client, userdata, message):
         # <TOPIC_PREFIX>/<COMPONENT_TYPE>/<COMPONENT_NAME>/state
         # TOPIC_PREFIX is usually the hostname
         sensor_name, _ = message.topic.rsplit('/', 1)
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
         s = Sensor(userdata['mdb_filename'], sensor_name)
         data = message.payload.decode()
         s.write_value(date, data, **userdata['write_value_kwargs'])
@@ -113,9 +113,10 @@ def _on_message(mqtt_client, userdata, message):
             logger.error('Cannot decode message {message.payload.decode()} as json')
             return
 
-        date = fromisoformat(data.pop('Time'))
+        # tasmota sends local time without timezone
+        date = as_datetime(data.pop('Time'))
         if date.year < 2016:
-            date = datetime.now()
+            date = datetime.now(timezone.utc)
 
         for sensor in data.keys():
             if sensor.startswith('DS18B20'):
@@ -149,7 +150,7 @@ def _on_message(mqtt_client, userdata, message):
 
     else:
         msg = message.payload.decode()
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
 
         # Note: don't use np.fromstring to decode payload data
         # There are many bugreports that, in some versions of numpy, it does not raise a ValueError on inappropriate
@@ -168,10 +169,10 @@ def _on_message(mqtt_client, userdata, message):
             # decode epoch/value from ESP32_datalogger
             if "epoch" in data and "value" in data:
                 # {"epoch":1670946356,"value":62.875}
-                date = datetime.fromtimestamp(float(data['epoch']))
+                date = datetime.fromtimestamp(float(data['epoch']), tz=timezone.utc)
                 if date.year < 2016:
                     # sensor could not sync it's time
-                    date = datetime.now()
+                    date = datetime.now(timezone.utc)
                 data = data['value']
 
         s = Sensor(userdata['mdb_filename'], message.topic)

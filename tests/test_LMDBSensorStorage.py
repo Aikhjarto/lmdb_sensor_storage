@@ -5,7 +5,7 @@ from lmdb_sensor_storage import Sensor, LMDBSensorStorage
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
 # noinspection PyProtectedMember
-from lmdb_sensor_storage._parser import as_datetime
+from lmdb_sensor_storage._parser import as_datetime, as_local_datetime
 from tests import EmptyDatabaseMixin
 
 
@@ -94,13 +94,13 @@ class TestcaseLMDBSensorStorageGetJSON(DataMixin, unittest.TestCase):
         # test without limits
         json_bytes = self.db.get_json(['s1', 's2'])
         data = json.loads(json_bytes)
-        ref = {'Time': ['2000-01-01T00:00:00',
-                        '2000-01-01T00:00:05',
-                        '2000-01-01T00:00:06.500000',
-                        '2000-01-01T00:00:10.100000',
-                        '2000-01-01T00:00:15'],
-               'notes': [{'2000-01-01T00:00:04': {'long': 'Very long description of toplevel note',
-                                                  'short': 'Toplevel Note'}}],
+        ref = {'Time': ['2000-01-01T00:00:00+01:00',
+                        '2000-01-01T00:00:05+01:00',
+                        '2000-01-01T00:00:06.500000+01:00',
+                        '2000-01-01T00:00:10.100000+01:00',
+                        '2000-01-01T00:00:15+01:00'],
+               'notes': [{'2000-01-01T00:00:04+01:00': {'long': 'Very long description of toplevel note',
+                                                        'short': 'Toplevel Note'}}],
                's1': {"values": [1.0, 2.0, 2.0, 3.0, 4.0]},
                's2': {"values": [10.0, 20.0, 30.0, 30.0, 40.0]}}
         self.assertEqual(ref, data)
@@ -111,11 +111,11 @@ class TestcaseLMDBSensorStorageGetJSON(DataMixin, unittest.TestCase):
                                       until=self.reference_date + timedelta(seconds=11))
 
         data = json.loads(json_bytes)
-        ref = {'Time': [(self.reference_date + timedelta(seconds=5)).isoformat(),
-                        (self.reference_date + timedelta(seconds=6.5)).isoformat(),
-                        (self.reference_date + timedelta(seconds=10.1)).isoformat()],
-               'notes': [{'2000-01-01T00:00:04': {'long': 'Very long description of toplevel note',
-                                                  'short': 'Toplevel Note'}}],
+        ref = {'Time': [as_local_datetime(self.reference_date + timedelta(seconds=5)).isoformat(),
+                        as_local_datetime(self.reference_date + timedelta(seconds=6.5)).isoformat(),
+                        as_local_datetime(self.reference_date + timedelta(seconds=10.1)).isoformat()],
+               'notes': [{'2000-01-01T00:00:04+01:00': {'long': 'Very long description of toplevel note',
+                                                        'short': 'Toplevel Note'}}],
                's1': {"values": [2.0, 2.0, 3.0]},
                's2': {"values": [20.0, 30.0, 30.0]}}
         self.assertEqual(ref, data)
@@ -126,17 +126,17 @@ class TestcaseLMDBSensorStorageGetJSON(DataMixin, unittest.TestCase):
                                       until=self.reference_date + timedelta(seconds=11))
 
         data = json.loads(json_bytes)
-        ref = {'Time': ['2000-01-01T00:00:03',
-                        '2000-01-01T00:00:04.500000',
-                        '2000-01-01T00:00:05',
-                        '2000-01-01T00:00:06.500000',
-                        '2000-01-01T00:00:10.100000'],
-               'notes': [{'2000-01-01T00:00:04': {'long': 'Very long description of toplevel note',
-                                                  'short': 'Toplevel Note'}}],
+        ref = {'Time': ['2000-01-01T00:00:03+01:00',
+                        '2000-01-01T00:00:04.500000+01:00',
+                        '2000-01-01T00:00:05+01:00',
+                        '2000-01-01T00:00:06.500000+01:00',
+                        '2000-01-01T00:00:10.100000+01:00'],
+               'notes': [{'2000-01-01T00:00:04+01:00': {'long': 'Very long description of toplevel note',
+                                                        'short': 'Toplevel Note'}}],
                's1': {'values': [1.0, 1.0, 2.0, 2.0, 3.0]},
                's2': {'values': [10.0, 10.0, 20.0, 30.0, 30.0]},
                's4': {'metadata': {'field_names': ['A', 'B']},
-                      'notes': [{'2000-01-01T00:00:07': {'long': 'Very long description of sensorlevel note',
+                      'notes': [{'2000-01-01T00:00:07+01:00': {'long': 'Very long description of sensorlevel note',
                                                          'short': 'Sensorlevel Note'}}],
                       'values': [[200, 201], [300, 301], [300, 301], [300, 301], [300, 301]]}}
         self.assertEqual(ref, data)
@@ -144,13 +144,13 @@ class TestcaseLMDBSensorStorageGetJSON(DataMixin, unittest.TestCase):
     def test_get_json_with_str(self):
         json_bytes = self.db.get_json(['s1', 's5'])
         data = json.loads(json_bytes)
-        data_ref = {'Time': ['2000-01-01T00:00:00',
-                             '2000-01-01T00:00:03',
-                             '2000-01-01T00:00:04.500000',
-                             '2000-01-01T00:00:05',
-                             '2000-01-01T00:00:10.100000',
-                             '2000-01-01T00:00:11',
-                             '2000-01-01T00:00:15'],
+        data_ref = {'Time': ['2000-01-01T00:00:00+01:00',
+                             '2000-01-01T00:00:03+01:00',
+                             '2000-01-01T00:00:04.500000+01:00',
+                             '2000-01-01T00:00:05+01:00',
+                             '2000-01-01T00:00:10.100000+01:00',
+                             '2000-01-01T00:00:11+01:00',
+                             '2000-01-01T00:00:15+01:00'],
                     's1': {'values': [1.0, 1.0, 1.0, 2.0, 3.0, 3.0, 4.0]},
                     's5': {'values': ['test with space',
                                       'test with , ',
@@ -159,7 +159,7 @@ class TestcaseLMDBSensorStorageGetJSON(DataMixin, unittest.TestCase):
                                       'test',
                                       'test with ;',
                                       'test with ;']},
-                    'notes': [{'2000-01-01T00:00:04': {'long': 'Very long description of toplevel note',
+                    'notes': [{'2000-01-01T00:00:04+01:00': {'long': 'Very long description of toplevel note',
                                                        'short': 'Toplevel Note'}}]}
         self.assertEqual(data_ref, data)
 
@@ -177,116 +177,116 @@ class TestcaseLMDBSensorStorageGetCSV(DataMixin, unittest.TestCase):
     def test_get_csv_with_float(self):
         # test without limits and without header
         data = self.db.get_csv(['s1',])
-        ref = (b'2000-01-01T00:00:00;1.0\n'
-               b'2000-01-01T00:00:05;2.0\n'
-               b'2000-01-01T00:00:10.100000;3.0\n'
-               b'2000-01-01T00:00:15;4.0\n')
+        ref = (b'2000-01-01T00:00:00+01:00;1.0\n'
+               b'2000-01-01T00:00:05+01:00;2.0\n'
+               b'2000-01-01T00:00:10.100000+01:00;3.0\n'
+               b'2000-01-01T00:00:15+01:00;4.0\n')
         self.assertEqual(ref, data)
 
         # test without limits and without header
         data = self.db.get_csv(['s1',], include_header=True)
         ref = (b'"Time";"s1"\n'
-               b'2000-01-01T00:00:00;1.0\n'
-               b'2000-01-01T00:00:05;2.0\n'
-               b'2000-01-01T00:00:10.100000;3.0\n'
-               b'2000-01-01T00:00:15;4.0\n')
+               b'2000-01-01T00:00:00+01:00;1.0\n'
+               b'2000-01-01T00:00:05+01:00;2.0\n'
+               b'2000-01-01T00:00:10.100000+01:00;3.0\n'
+               b'2000-01-01T00:00:15+01:00;4.0\n')
         self.assertEqual(ref, data)
 
         # test without limits and without header
         data = self.db.get_csv(['s1',], include_header=True)
         ref = (b'"Time";"s1"\n'
-               b'2000-01-01T00:00:00;1.0\n'
-               b'2000-01-01T00:00:05;2.0\n'
-               b'2000-01-01T00:00:10.100000;3.0\n'
-               b'2000-01-01T00:00:15;4.0\n')
+               b'2000-01-01T00:00:00+01:00;1.0\n'
+               b'2000-01-01T00:00:05+01:00;2.0\n'
+               b'2000-01-01T00:00:10.100000+01:00;3.0\n'
+               b'2000-01-01T00:00:15+01:00;4.0\n')
         self.assertEqual(ref, data)
 
     def test_get_csv_with_struct_no_fieldname(self):
 
         data = self.db.get_csv(['s3',], include_header=True)
         ref = (b'"Time";"s3 Field 0";"s3 Field 1"\n'
-               b'2000-01-01T00:00:00;100;101\n'
-               b'2000-01-01T00:00:03;200;201\n'
-               b'2000-01-01T00:00:04.500000;300;301\n'
-               b'2000-01-01T00:00:11;400;401\n')
+               b'2000-01-01T00:00:00+01:00;100;101\n'
+               b'2000-01-01T00:00:03+01:00;200;201\n'
+               b'2000-01-01T00:00:04.500000+01:00;300;301\n'
+               b'2000-01-01T00:00:11+01:00;400;401\n')
         self.assertEqual(ref, data)
 
     def test_get_csv_with_struct_and_fieldname(self):
         data = self.db.get_csv(['s4',], include_header=True)
         ref = (b'"Time";"s4 A";"s4 B"\n'
-               b'2000-01-01T00:00:00;100;101\n'
-               b'2000-01-01T00:00:03;200;201\n'
-               b'2000-01-01T00:00:04.500000;300;301\n'
-               b'2000-01-01T00:00:11;400;401\n')
+               b'2000-01-01T00:00:00+01:00;100;101\n'
+               b'2000-01-01T00:00:03+01:00;200;201\n'
+               b'2000-01-01T00:00:04.500000+01:00;300;301\n'
+               b'2000-01-01T00:00:11+01:00;400;401\n')
         self.assertEqual(ref, data)
 
     def test_get_csv_two_float_sensors(self):
         data = self.db.get_csv(['s1', 's2'])
-        ref = (b'2000-01-01T00:00:00;1.0;10.0\n'
-               b'2000-01-01T00:00:05;2.0;20.0\n'
-               b'2000-01-01T00:00:06.500000;2.0;30.0\n'
-               b'2000-01-01T00:00:10.100000;3.0;30.0\n'
-               b'2000-01-01T00:00:15;4.0;40.0\n')
+        ref = (b'2000-01-01T00:00:00+01:00;1.0;10.0\n'
+               b'2000-01-01T00:00:05+01:00;2.0;20.0\n'
+               b'2000-01-01T00:00:06.500000+01:00;2.0;30.0\n'
+               b'2000-01-01T00:00:10.100000+01:00;3.0;30.0\n'
+               b'2000-01-01T00:00:15+01:00;4.0;40.0\n')
         self.assertEqual(ref, data)
 
     def test_get_csv_two_float_sensors_header(self):
         data = self.db.get_csv(['s1', 's2'], include_header=True)
         ref = (b'"Time";"s1";"s2"\n'
-               b'2000-01-01T00:00:00;1.0;10.0\n'
-               b'2000-01-01T00:00:05;2.0;20.0\n'
-               b'2000-01-01T00:00:06.500000;2.0;30.0\n'
-               b'2000-01-01T00:00:10.100000;3.0;30.0\n'
-               b'2000-01-01T00:00:15;4.0;40.0\n')
+               b'2000-01-01T00:00:00+01:00;1.0;10.0\n'
+               b'2000-01-01T00:00:05+01:00;2.0;20.0\n'
+               b'2000-01-01T00:00:06.500000+01:00;2.0;30.0\n'
+               b'2000-01-01T00:00:10.100000+01:00;3.0;30.0\n'
+               b'2000-01-01T00:00:15+01:00;4.0;40.0\n')
         self.assertEqual(ref, data)
 
     def test_get_csv_float_and_struct_sensors(self):
         data = self.db.get_csv(['s1', 's2', 's3'])
-        ref = (b'2000-01-01T00:00:00;1.0;10.0;100;101\n'
-               b'2000-01-01T00:00:03;1.0;10.0;200;201\n'
-               b'2000-01-01T00:00:04.500000;1.0;10.0;300;301\n'
-               b'2000-01-01T00:00:05;2.0;20.0;300;301\n'
-               b'2000-01-01T00:00:06.500000;2.0;30.0;300;301\n'
-               b'2000-01-01T00:00:10.100000;3.0;30.0;300;301\n'
-               b'2000-01-01T00:00:11;3.0;30.0;400;401\n'
-               b'2000-01-01T00:00:15;4.0;40.0;400;401\n')
+        ref = (b'2000-01-01T00:00:00+01:00;1.0;10.0;100;101\n'
+               b'2000-01-01T00:00:03+01:00;1.0;10.0;200;201\n'
+               b'2000-01-01T00:00:04.500000+01:00;1.0;10.0;300;301\n'
+               b'2000-01-01T00:00:05+01:00;2.0;20.0;300;301\n'
+               b'2000-01-01T00:00:06.500000+01:00;2.0;30.0;300;301\n'
+               b'2000-01-01T00:00:10.100000+01:00;3.0;30.0;300;301\n'
+               b'2000-01-01T00:00:11+01:00;3.0;30.0;400;401\n'
+               b'2000-01-01T00:00:15+01:00;4.0;40.0;400;401\n')
         self.assertEqual(ref, data)
 
     def test_get_csv_float_and_struct_sensors_with_headers(self):
         data = self.db.get_csv(['s1', 's2', 's3'], include_header=True)
         ref = (b'"Time";"s1";"s2";"s3 Field 0";"s3 Field 1"\n'
-               b'2000-01-01T00:00:00;1.0;10.0;100;101\n'
-               b'2000-01-01T00:00:03;1.0;10.0;200;201\n'
-               b'2000-01-01T00:00:04.500000;1.0;10.0;300;301\n'
-               b'2000-01-01T00:00:05;2.0;20.0;300;301\n'
-               b'2000-01-01T00:00:06.500000;2.0;30.0;300;301\n'
-               b'2000-01-01T00:00:10.100000;3.0;30.0;300;301\n'
-               b'2000-01-01T00:00:11;3.0;30.0;400;401\n'
-               b'2000-01-01T00:00:15;4.0;40.0;400;401\n')
+               b'2000-01-01T00:00:00+01:00;1.0;10.0;100;101\n'
+               b'2000-01-01T00:00:03+01:00;1.0;10.0;200;201\n'
+               b'2000-01-01T00:00:04.500000+01:00;1.0;10.0;300;301\n'
+               b'2000-01-01T00:00:05+01:00;2.0;20.0;300;301\n'
+               b'2000-01-01T00:00:06.500000+01:00;2.0;30.0;300;301\n'
+               b'2000-01-01T00:00:10.100000+01:00;3.0;30.0;300;301\n'
+               b'2000-01-01T00:00:11+01:00;3.0;30.0;400;401\n'
+               b'2000-01-01T00:00:15+01:00;4.0;40.0;400;401\n')
         self.assertEqual(ref, data)
 
     def test_get_csv_float_and_struct_sensors_with_headers_and_named_fields(self):
         data = self.db.get_csv(['s1', 's2', 's4'], include_header=True)
         ref = (b'"Time";"s1";"s2";"s4 A";"s4 B"\n'
-               b'2000-01-01T00:00:00;1.0;10.0;100;101\n'
-               b'2000-01-01T00:00:03;1.0;10.0;200;201\n'
-               b'2000-01-01T00:00:04.500000;1.0;10.0;300;301\n'
-               b'2000-01-01T00:00:05;2.0;20.0;300;301\n'
-               b'2000-01-01T00:00:06.500000;2.0;30.0;300;301\n'
-               b'2000-01-01T00:00:10.100000;3.0;30.0;300;301\n'
-               b'2000-01-01T00:00:11;3.0;30.0;400;401\n'
-               b'2000-01-01T00:00:15;4.0;40.0;400;401\n')
+               b'2000-01-01T00:00:00+01:00;1.0;10.0;100;101\n'
+               b'2000-01-01T00:00:03+01:00;1.0;10.0;200;201\n'
+               b'2000-01-01T00:00:04.500000+01:00;1.0;10.0;300;301\n'
+               b'2000-01-01T00:00:05+01:00;2.0;20.0;300;301\n'
+               b'2000-01-01T00:00:06.500000+01:00;2.0;30.0;300;301\n'
+               b'2000-01-01T00:00:10.100000+01:00;3.0;30.0;300;301\n'
+               b'2000-01-01T00:00:11+01:00;3.0;30.0;400;401\n'
+               b'2000-01-01T00:00:15+01:00;4.0;40.0;400;401\n')
         self.assertEqual(ref, data)
 
     def test_get_csv_float_and_string(self):
         data = self.db.get_csv(['s1', 's5'], include_header=True)
         data_ref = (b'"Time";"s1";"s5"\n'
-                    b'2000-01-01T00:00:00;1.0;"test with space"\n'
-                    b'2000-01-01T00:00:03;1.0;"test with , "\n'
-                    b'2000-01-01T00:00:04.500000;1.0;"test"\n'
-                    b'2000-01-01T00:00:05;2.0;"test"\n'
-                    b'2000-01-01T00:00:10.100000;3.0;"test"\n'
-                    b'2000-01-01T00:00:11;3.0;"test with ;"\n'
-                    b'2000-01-01T00:00:15;4.0;"test with ;"\n')
+                    b'2000-01-01T00:00:00+01:00;1.0;"test with space"\n'
+                    b'2000-01-01T00:00:03+01:00;1.0;"test with , "\n'
+                    b'2000-01-01T00:00:04.500000+01:00;1.0;"test"\n'
+                    b'2000-01-01T00:00:05+01:00;2.0;"test"\n'
+                    b'2000-01-01T00:00:10.100000+01:00;3.0;"test"\n'
+                    b'2000-01-01T00:00:11+01:00;3.0;"test with ;"\n'
+                    b'2000-01-01T00:00:15+01:00;4.0;"test with ;"\n')
         self.assertEqual(data_ref, data)
 
 

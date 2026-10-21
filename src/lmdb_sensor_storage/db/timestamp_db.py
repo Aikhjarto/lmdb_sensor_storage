@@ -41,6 +41,7 @@ class TimestampBytesDB(LMDBDict):
         If only_if_value_changed was True and max_age_seconds was given, an entry will be made if time difference
         between the most recent value before `date` and `date` exceeds  max_age_seconds.
         """
+        date = as_datetime(date)
         with manager.get_transaction(self._mdb_filename, self._db_name, write=True) as txn:
             value_packed = self._value_packer.pack(value)
             if only_if_value_changed:

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 import json
 import struct
@@ -7,7 +7,7 @@ import simplejson
 from lmdb_sensor_storage.db.timestamp_db import TimestampBytesDB, TimestampStringDB, TimestampYAMLDB
 from lmdb_sensor_storage.db.dict_db import StringRegexpDB, StringYamlDB
 from lmdb_sensor_storage.db._manager import manager
-from lmdb_sensor_storage._parser import as_datetime
+from lmdb_sensor_storage._parser import as_datetime, as_local_datetime
 from lmdb_sensor_storage.db.packer import BytesPacker, StringPacker, JSONPacker, FloatPacker, \
     StructPacker
 from typing import Mapping, List, Sequence, Union, Any, Dict, Callable, Iterable
@@ -89,7 +89,7 @@ class Sensor(TimestampBytesDB):
         self._set_value_packer(data_format)
         if data_format is not None:
             # store backend-selection
-            self._format_db.write_value(datetime.now(), data_format, only_if_value_changed=True)
+            self._format_db.write_value(datetime.now(timezone.utc), data_format, only_if_value_changed=True)
 
     def _set_value_packer(self, data_format: Union[str, None]):
 
@@ -156,7 +156,7 @@ class TimestampNotesDB(TimestampYAMLDB):
 
     def add_note(self, short: str, long: str = None, timestamp: Union[str, datetime, int, float] = None):
         if timestamp is None:
-            timestamp = datetime.now()
+            timestamp = datetime.now(timezone.utc)
         else:
             timestamp = as_datetime(timestamp)
 
@@ -355,7 +355,7 @@ class LMDBSensorStorage(Sensors):
                                at_timestamps_only=True,
                                **timespan_kwargs) for s in sensors]
             for idx, key in enumerate(keys):
-                tmp = [key.isoformat(),]
+                tmp = [as_local_datetime(key).isoformat(), ]
                 for k, i in enumerate(values):
                     if isinstance(sensors[k]._value_packer, StructPacker):
                         tmp.append(';'.join([str(j) for j in i[idx]]))
@@ -380,7 +380,7 @@ class LMDBSensorStorage(Sensors):
             keys = self._get_common_keys(sensor_names, **timespan_kwargs)
     
             buffer_function('{"Time":['.encode())
-            buffer_function(','.join([f'"{key.isoformat()}"' for key in keys]).encode())
+            buffer_function(','.join([f'"{as_local_datetime(key).isoformat()}"' for key in keys]).encode())
             buffer_function(']'.encode())
             for sensor_name in sensor_names:
                 buffer_function(f',"{sensor_name}":{{"values":'.encode())
@@ -394,7 +394,7 @@ class LMDBSensorStorage(Sensors):
                 notes = self[sensor_name].notes.items(**timespan_kwargs)
                 if notes:
                     buffer_function(',"notes":['.encode())
-                    buffer_function(','.join([f'{{"{note[0].isoformat()}": {json.dumps(note[1])}}}'
+                    buffer_function(','.join([f'{{"{as_local_datetime(note[0]).isoformat()}": {json.dumps(note[1])}}}'
                                               for note in notes]).encode())
                     buffer_function(']'.encode())
                 buffer_function("}".encode())
@@ -402,7 +402,7 @@ class LMDBSensorStorage(Sensors):
             notes = self.notes.items(**timespan_kwargs)
             if notes:
                 buffer_function(',"notes":['.encode())
-                buffer_function(','.join([f'{{"{note[0].isoformat()}": {json.dumps(note[1])}}}'
+                buffer_function(','.join([f'{{"{as_local_datetime(note[0]).isoformat()}": {json.dumps(note[1])}}}'
                                           for note in notes]).encode())
                 buffer_function(']'.encode())
 

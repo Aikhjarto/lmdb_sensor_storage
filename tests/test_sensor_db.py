@@ -2,11 +2,11 @@ import os
 import subprocess
 import sys
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from lmdb_sensor_storage.db.sensor_db import TimestampBytesDB
 from lmdb_sensor_storage.db.dict_db import StringYamlDB
 # noinspection PyProtectedMember
-from lmdb_sensor_storage._parser import as_datetime
+from lmdb_sensor_storage._parser import as_datetime, as_local_datetime, as_local_naive
 
 from tests import EmptyDatabaseMixin
 
@@ -25,7 +25,7 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
     def test_only_if_changed(self):
         db = TimestampBytesDB(self.mdb_filename, 'g')
         val = b'1'
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
         db.write_value(date, val)
         self.assertEqual(len(db), 1)
 
@@ -47,13 +47,13 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
         db._get_lmdb_stats()
 
         # test on empty db
-        self.assertFalse(datetime.now() in db)
+        self.assertFalse(datetime.now(timezone.utc) in db)
         self.assertEqual(len(db), 0)
         db.__repr__()
-        db.keys(since=datetime.now(), until=datetime.now(), endpoint=True)
-        db.keys(since=datetime.now(), until=datetime.now(), endpoint=False)
+        db.keys(since=datetime.now(timezone.utc), until=datetime.now(timezone.utc), endpoint=True)
+        db.keys(since=datetime.now(timezone.utc), until=datetime.now(timezone.utc), endpoint=False)
 
-        key = datetime.now()
+        key = datetime.now(timezone.utc)
 
         # test for setting first value
         val = b'0'
@@ -78,7 +78,7 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
 
         # test two value
         val2 = b'1'
-        key2 = datetime.now()
+        key2 = datetime.now(timezone.utc)
         db[key2] = val2
         self.assertEqual(len(db), 2)
         self.assertEqual(db[key], val)
@@ -93,7 +93,7 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
         db.__repr__()
 
         # only if value changed
-        key3 = datetime.now()
+        key3 = datetime.now(timezone.utc)
         db.write_value(key3, val2, only_if_value_changed=True)
         self.assertEqual(len(db), 2)
 
@@ -113,7 +113,7 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_delete_entries(self):
         db = TimestampBytesDB(self.mdb_filename, 'd')
-        dates = [datetime(2024, 1, 1, 0, i) for i in range(10)]
+        dates = [datetime(2024, 1, 1, 0, i, tzinfo=timezone.utc) for i in range(10)]
         for date in dates:
             db.write_value(date, b'1')
 
@@ -126,7 +126,7 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
 
     def test_read_does_not_block_writer(self):
         db = TimestampBytesDB(self.mdb_filename, 'r')
-        dates = [datetime(2024, 1, 1, 0, i) for i in range(3)]
+        dates = [datetime(2024, 1, 1, 0, i, tzinfo=timezone.utc) for i in range(3)]
         for date in dates:
             db.write_value(date, b'1')
 
@@ -147,13 +147,33 @@ class TestcaseTimestampBytesDB(EmptyDatabaseMixin, unittest.TestCase):
         finally:
             reader.close()
 
+    def test_daylight_saving_time(self):
+        # 02:00 to 03:00 local time happens twice on 2024-10-27 in Europe/Vienna, the timezone of the tests
+        db = TimestampBytesDB(self.mdb_filename, 'dst')
+        first = datetime(2024, 10, 27, 0, 30, tzinfo=timezone.utc)  # 02:30 CEST
+        second = datetime(2024, 10, 27, 1, 30, tzinfo=timezone.utc)  # 02:30 CET
+        db.write_value(second, b'2')
+        db.write_value(first, b'1')
+        self.assertEqual([first, second], db.keys())
+        self.assertEqual([b'2'], db.values(since=second))
+
+        # same local time, distinguished by the offset in ISO format
+        self.assertEqual(as_local_naive(first), as_local_naive(second))
+        self.assertEqual('2024-10-27T02:30:00+02:00', as_local_datetime(first).isoformat())
+        self.assertEqual('2024-10-27T02:30:00+01:00', as_local_datetime(second).isoformat())
+        self.assertEqual(second, as_datetime('2024-10-27T02:30:00+01:00'))
+
+        # ambiguous naive local time is resolved by fold
+        self.assertEqual(first, as_datetime(datetime(2024, 10, 27, 2, 30)))
+        self.assertEqual(second, as_datetime(datetime(2024, 10, 27, 2, 30, fold=1)))
+
     def test_last_changed(self):
         db = TimestampBytesDB(self.mdb_filename, 'h')
         db._get_lmdb_stats()
 
         self.assertEqual(None, db.get_last_changed())
 
-        date = datetime.now()
+        date = datetime.now(timezone.utc)
         data = b'1'
         db.write_value(date, data)
         self.assertEqual(None, db.get_last_changed())

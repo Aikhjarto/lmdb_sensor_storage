@@ -22,7 +22,7 @@ from lmdb_sensor_storage.generate_history_html import generate_history_div
 from lmdb_sensor_storage.mdb_server._http_request_handler import HTTPRequestHandler, logger
 from lmdb_sensor_storage.mdb_server import html_template
 from lmdb_sensor_storage.import_wunderground import import_wunderground_station
-from lmdb_sensor_storage._parser import as_datetime
+from lmdb_sensor_storage._parser import as_datetime, as_local_naive
 
 
 def strtobool(val: str) -> bool:
@@ -276,7 +276,7 @@ class MDBRequestHandler(HTTPRequestHandler):
 
     def redirect_to_timespan(self, since: datetime.timedelta, decimate_to_s: float = None):
         """Redirect to the history page for the time span from `since` before now until now."""
-        now = datetime.datetime.now()
+        now = datetime.datetime.now().astimezone()
         query = {'since': (now - since).isoformat(), 'until': now.isoformat()}
         if decimate_to_s:
             query['decimate_to_s'] = decimate_to_s
@@ -384,7 +384,7 @@ class MDBRequestHandler(HTTPRequestHandler):
                 return
 
             if 'since' not in kwargs:
-                kwargs['since'] = (datetime.datetime.now() - datetime.timedelta(days=1))
+                kwargs['since'] = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1))
 
             if 'decimate_to_s' not in kwargs:
                 kwargs['decimate_to_s'] = 'auto'
@@ -404,10 +404,11 @@ class MDBRequestHandler(HTTPRequestHandler):
                 div_plot = f'<div>{escape(f"{e} {tb}")}</div>'
             # update HTML form data
             # Note: use seconds, since with minutes, re-submitting the form would exclude the current minute
-            since = kwargs['since'].isoformat(timespec='seconds')
+            # Note: input fields of type datetime-local require local time without timezone
+            since = as_local_naive(kwargs['since']).isoformat(timespec='seconds')
 
             if 'until' in kwargs:
-                until = kwargs['until'].isoformat(timespec='seconds')
+                until = as_local_naive(kwargs['until']).isoformat(timespec='seconds')
             else:
                 until = datetime.datetime.now().isoformat(timespec='seconds')
 
@@ -444,11 +445,12 @@ class MDBRequestHandler(HTTPRequestHandler):
                                                             multiselect_height=min(10, len(options_sensors)))
             # delete note form
             options = []
-            for t_isoformat, val in self.server.sensor_storage.notes.items(since=kwargs['since'],
-                                                                           until=kwargs.get('until'),
-                                                                           endpoint=True):
-                options.append(f'<option value="{escape(str(t_isoformat))}">'
-                               f'{escape(str(t_isoformat))}; {escape(val["short"])}</option>')
+            for timestamp, val in self.server.sensor_storage.notes.items(since=kwargs['since'],
+                                                                         until=kwargs.get('until'),
+                                                                         endpoint=True):
+                # value identifies the note exactly, the text shows local time
+                options.append(f'<option value="{escape(timestamp.isoformat())}">'
+                               f'{escape(str(as_local_naive(timestamp)))}; {escape(val["short"])}</option>')
             # note forms return to the current view
             query = self.query_string()
             delete_note_form = self.html_delete_note_form_template.format(

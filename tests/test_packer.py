@@ -1,6 +1,9 @@
+import random
 import struct
 import unittest
-from lmdb_sensor_storage.db.packer import FloatPacker, IntPacker, StringPacker, JSONPacker, StructPacker
+from datetime import datetime, timedelta, timezone
+from lmdb_sensor_storage.db.packer import FloatPacker, IntPacker, StringPacker, JSONPacker, StructPacker, \
+    DatetimePacker
 
 
 class TestcasePacker(unittest.TestCase):
@@ -39,6 +42,26 @@ class TestcasePacker(unittest.TestCase):
     def testStruct(self):
         p = StructPacker('HH')
         self.assertEqual((3, 4), p.unpack(p.pack([3, 4])))
+
+    def testDatetime(self):
+        p = DatetimePacker()
+        d = datetime(2024, 1, 2, 3, 4, 5, 678901, tzinfo=timezone.utc)
+        self.assertEqual(d, p.unpack(p.pack(d)))
+        self.assertEqual(timezone.utc, p.unpack(p.pack(d)).tzinfo)
+
+        # same instant in other timezone, or as naive local time
+        self.assertEqual(p.pack(d), p.pack(d.astimezone(timezone(timedelta(hours=-5)))))
+        self.assertEqual(p.pack(d), p.pack(d.astimezone().replace(tzinfo=None)))
+
+        # keys are sorted in time
+        self.assertLess(p.pack(d), p.pack(d + timedelta(microseconds=1)))
+
+    def testDatetimeExact(self):
+        # packing an unpacked key results in the same key
+        p = DatetimePacker()
+        for _ in range(10000):
+            key = struct.pack('!Q', random.randrange(2**52))
+            self.assertEqual(key, p.pack(p.unpack(key)))
 
     def testStruct2(self):
         p = StructPacker('HH')

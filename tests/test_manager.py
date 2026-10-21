@@ -4,7 +4,7 @@ from . import EmptyDatabaseMixin
 from lmdb_sensor_storage import LMDBSensorStorage
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class TestManager(EmptyDatabaseMixin, unittest.TestCase):
@@ -12,7 +12,7 @@ class TestManager(EmptyDatabaseMixin, unittest.TestCase):
         # Exceed the maximum number of sub-databases several times. Small limits make this fast, since the cost of
         # transactions in lmdb grows with the limit.
         storage = LMDBSensorStorage(self.mdb_filename)
-        ref_date = datetime.now()
+        ref_date = datetime.now(timezone.utc)
         ref_data = []
         with mock.patch.object(manager, 'DEFAULT_MAXDBS', 8), mock.patch.object(manager, 'MAX_DBS_STEP', 8), \
                 self.assertLogs('lmdb_sensor_storage.manager', level='WARNING') as logs:

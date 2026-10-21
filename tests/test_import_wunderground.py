@@ -1,7 +1,7 @@
 import json
 import os
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest import mock
 
 import requests
@@ -27,7 +27,7 @@ class TestImportWunderground(EmptyDatabaseMixin, unittest.TestCase):
     def test_import(self):
         self.import_json(OBSERVATIONS)
 
-        dates = [datetime.fromtimestamp(1700000000), datetime.fromtimestamp(1700000300)]
+        dates = [datetime.fromtimestamp(1700000000, tz=timezone.utc), datetime.fromtimestamp(1700000300, tz=timezone.utc)]
         temperature = Sensor(self.mdb_filename, 'outside_temperature_XY1')
         self.assertEqual(dates, temperature.keys())
         self.assertEqual(5.5, temperature.values()[0])

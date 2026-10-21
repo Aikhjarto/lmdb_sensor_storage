@@ -2,7 +2,7 @@ import argparse
 import csv
 from datetime import datetime
 import logging
-from lmdb_sensor_storage._parser import add_logging, setup_logging, fromisoformat
+from lmdb_sensor_storage._parser import add_logging, setup_logging, as_datetime
 from lmdb_sensor_storage.db.sensor_db import Sensor
 
 logger = logging.getLogger('lmdb_sensor_storage')
@@ -42,10 +42,8 @@ def read_csv(csv_filename='export.csv', since=None, until=None,
     values = []
 
     # ensure since and until are datetime object if not None
-    if since is not None and isinstance(since, str):
-        since = fromisoformat(since)
-    if until is not None and isinstance(until, str):
-        until = fromisoformat(until)
+    since = as_datetime(since, none_ok=True)
+    until = as_datetime(until, none_ok=True)
 
     logger.debug('import %s from %s until %s',
                  csv_filename,
@@ -57,7 +55,8 @@ def read_csv(csv_filename='export.csv', since=None, until=None,
 
         # simpler and faster loop for reading without decimation
         for row in reader:
-            row_date = fromisoformat(row[datetime_column])
+            # timestamps without timezone are local time
+            row_date = as_datetime(row[datetime_column])
             if until is not None and row_date > until:
                 break
             if since is None or since <= row_date:

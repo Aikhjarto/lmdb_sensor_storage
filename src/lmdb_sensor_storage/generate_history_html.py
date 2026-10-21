@@ -14,7 +14,7 @@ from lmdb_sensor_storage.db.sensor_db import LMDBSensorStorage
 from lmdb_sensor_storage.db.chunker import timestamp_chunker_center, value_chunker_mean, value_chunker_minmeanmax, \
     timestamp_chunker_minmeanmax
 from lmdb_sensor_storage.mdb_server import html_template
-from lmdb_sensor_storage._parser import add_logging, setup_logging, fromisoformat
+from lmdb_sensor_storage._parser import add_logging, setup_logging, as_datetime, as_local_naive
 
 logger = logging.getLogger('lmdb_sensor_storage.history')
 
@@ -214,7 +214,8 @@ def generate_history_div(mdb_filename,
                          'yaxis': 'y' + suffix,
                          })
         else:
-            dates = [d.isoformat() for d in dates]
+            # plotly ignores timezones, thus show local time
+            dates = [as_local_naive(d).isoformat() for d in dates]
             if storage[sensor_name].data_format == 'f':
                 data.append({'type': 'scatter',
                              'x': dates,
@@ -265,6 +266,7 @@ def generate_history_div(mdb_filename,
     shapes = []
     annotations = []
     for timestamp, notes in storage.notes.items(since=kwargs.get('since'), until=kwargs.get('until')):
+        timestamp = as_local_naive(timestamp)
         shapes.append({"type": 'line',
                        "x0": timestamp.isoformat(),
                        "y0": 0,
@@ -448,9 +450,9 @@ def setup_parser() -> argparse.ArgumentParser:
     parser.add_argument('--export-filename', type=str, default=None)
     parser.add_argument('--group-sensors-regexp', type=str, action='append', dest='group_sensors_regexps')
 
-    parser.add_argument('--since', type=lambda s: fromisoformat(s),
+    parser.add_argument('--since', type=as_datetime,
                         help='Timestamp in isoformat')
-    parser.add_argument('--until', type=lambda s: fromisoformat(s),
+    parser.add_argument('--until', type=as_datetime,
                         help='Timestamp in isoformat')
     parser.add_argument('--decimate-to-s')
     parser.add_argument('--limit', type=int)

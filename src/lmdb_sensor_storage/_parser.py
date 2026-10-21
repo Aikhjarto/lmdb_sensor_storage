@@ -141,6 +141,19 @@ def fromisoformat(s):
         return tmp
 
 
+def as_local_datetime(d) -> datetime.datetime:
+    """Like `as_datetime`, but in the local timezone, e.g., for displaying."""
+    return as_datetime(d).astimezone()
+
+
+def as_local_naive(d) -> datetime.datetime:
+    """
+    Local time without timezone, e.g., for plotly, which ignores timezones, or HTML input fields of type
+    datetime-local.
+    """
+    return as_local_datetime(d).replace(tzinfo=None)
+
+
 def as_timedelta(d, none_ok=False):
     if d is None and none_ok:
         return None
@@ -152,12 +165,13 @@ def as_timedelta(d, none_ok=False):
 
 def as_datetime(d, none_ok=False):
     """
-    Converts 'd' to a datetime object and returns said object.
+    Converts 'd' to a timezone-aware datetime object in UTC and returns said object.
 
     Parameters
     ----------
     d : str or datetime.datetime or int or float or None
         `d` can be either a number, which is treated as timestamp, or a string, which is treated as isoformat.
+        Datetime objects and ISO formatted strings without timezone are treated as local time.
 
     none_ok : boolisinstance
         If True, None is valid for 'd', otherwise a ValueError is raised.
@@ -170,9 +184,10 @@ def as_datetime(d, none_ok=False):
         return None
     elif isinstance(d, int) or isinstance(d, float):
         # timestamp in seconds
-        return datetime.datetime.fromtimestamp(d)
+        return datetime.datetime.fromtimestamp(d, tz=datetime.timezone.utc)
     elif isinstance(d, datetime.datetime):
-        return d
+        # naive datetime objects are interpreted as local time by astimezone
+        return d.astimezone(datetime.timezone.utc)
     elif isinstance(d, str):
         # isoformat string, timestamp number as string (with or without suffix)
         scale = 1
@@ -202,10 +217,10 @@ def as_datetime(d, none_ok=False):
                 pass
 
         if timestamp_val is not None:
-            return datetime.datetime.fromtimestamp(timestamp_val/scale)
+            return datetime.datetime.fromtimestamp(timestamp_val/scale, tz=datetime.timezone.utc)
 
-        return fromisoformat(d)
+        return fromisoformat(d).astimezone(datetime.timezone.utc)
     elif isinstance(d, datetime.date):
-        return datetime.datetime.combine(d, datetime.time.min)
+        return datetime.datetime.combine(d, datetime.time.min).astimezone(datetime.timezone.utc)
     else:
         raise ValueError(f'{d} of type {type(d)} cannot be processed as timestamp')

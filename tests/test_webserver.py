@@ -262,7 +262,8 @@ class UnitTests(unittest.TestCase):
         timestamp = datetime.datetime(2024, 1, 2, 3, 4, 5, 678901)
         req = self.post('/time', {'timestamp': timestamp.isoformat(), 'short': 'brief', 'long': 'longer'})
         self.assertEqual(200, req.status_code)
-        self.assertEqual([(timestamp, {'short': 'brief', 'long': 'longer'})], notes.items())
+        # the form sends local time
+        self.assertEqual([(timestamp.astimezone(), {'short': 'brief', 'long': 'longer'})], notes.items())
 
         # delete with the timestamp as shown in the form
         req = self.post('/time?delete=yes', {'timestamp': str(notes.keys()[0])})
@@ -273,7 +274,7 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(404, self.post('/time?delete=yes', {'timestamp': str(timestamp)}).status_code)
 
     def test_post_note_without_timestamp(self):
-        before = datetime.datetime.now()
+        before = datetime.datetime.now(datetime.timezone.utc)
         self.assertEqual(200, self.post('/time', {'timestamp': '', 'short': 'now'}).status_code)
         timestamp, note = Notes(self.mdb_filename).items()[0]
         self.assertGreaterEqual(timestamp, before)
@@ -394,9 +395,10 @@ class UnitTests(unittest.TestCase):
                                        'since': self.reference_date + datetime.timedelta(seconds=2),
                                        'until': self.reference_date + datetime.timedelta(seconds=11)})
         j = req.json()
-        ref = {'Time': [(self.reference_date + datetime.timedelta(seconds=5)).isoformat(),
-                        (self.reference_date + datetime.timedelta(seconds=6.5)).isoformat(),
-                        (self.reference_date + datetime.timedelta(seconds=10.1)).isoformat()],
+        # times in local timezone with offset
+        ref = {'Time': [(self.reference_date + datetime.timedelta(seconds=5)).astimezone().isoformat(),
+                        (self.reference_date + datetime.timedelta(seconds=6.5)).astimezone().isoformat(),
+                        (self.reference_date + datetime.timedelta(seconds=10.1)).astimezone().isoformat()],
                's1': {'values': [2.0, 2.0, 3.0]},
                's2': {'values': [20.0, 30.0, 30.0]}
                }
