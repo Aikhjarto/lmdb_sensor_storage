@@ -19,7 +19,8 @@ from tests import EmptyDatabaseMixin
 
 MOSQUITTO = shutil.which('mosquitto') or '/usr/sbin/mosquitto'
 
-# port of the broker started by these tests, different to the one of test_mqtt_subscriber
+# ports of the brokers started by these tests, different to the one of test_mqtt_subscriber
+PORT = 1885
 TLS_PORT = 8885
 
 
@@ -100,6 +101,23 @@ class SubscriberProcessMixin(EmptyDatabaseMixin):
         if not wait_for(stored, timeout=timeout, interval=0):
             with open(self.subscriber_log) as f:
                 self.fail(f'{value} was not stored, subscriber log:\n{f.read()}')
+
+
+class TestSubscriberReconnect(SubscriberProcessMixin, unittest.TestCase):
+
+    def test_resubscribe_after_broker_restart(self):
+        self.start_broker(PORT)
+        self.start_subscriber('--mqtt-broker-port', str(PORT))
+        self.publish_until_stored(1.0, PORT)
+
+        # broker restart, e.g. during a reboot or network outage, drops all subscriptions
+        self.stop_broker()
+        self.start_broker(PORT)
+
+        self.publish_until_stored(2.0, PORT)
+        self.assertIsNone(self.subscriber.poll(), 'subscriber stopped')
+        with open(self.subscriber_log) as f:
+            self.assertIn('Disconnected from MQTT broker', f.read())
 
 
 class TestSubscriberTLS(SubscriberProcessMixin, unittest.TestCase):
