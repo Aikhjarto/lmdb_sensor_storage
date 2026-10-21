@@ -63,6 +63,13 @@ Parameters can also be read from a settings file via `--settings-filename`, with
 ```
 Only lines starting with `-` are processed, so other lines, e.g. starting with `#`, are comments.
 
+Subscriptions use QoS 1 by default, i.e., messages are delivered at least once while connected.
+Use `--mqtt-qos` to change it.
+
+To connect via TLS, use `--mqtt-tls`, which verifies the broker against the CAs of the system and uses port 8883 by
+default. `--mqtt-ca-file` sets other CA certificates, and `--mqtt-cert-file` and `--mqtt-key-file` set a client
+certificate. Both imply `--mqtt-tls`.
+
 Topics are subscribed again on every reconnect to the broker, e.g., after a network outage or a restart of the broker.
 Connects and disconnects are logged as warnings.
 Messages which cannot be decoded, or whose values don't match the data format of the sensor, are logged and skipped.

@@ -192,13 +192,45 @@ def on_connect(mqtt_client, userdata, flags, reason_code, properties):
         return
     logger.warning('Connected to MQTT broker, subscribing to %s', userdata['topics'])
     for topic in userdata['topics']:
-        res, mid = mqtt_client.subscribe(topic)
+        res, mid = mqtt_client.subscribe(topic, qos=userdata['qos'])
         if res != mqtt.MQTT_ERR_SUCCESS:
             logger.error(f'Subscribe to topic "{topic}" failed with error {res}')
 
 
 def on_disconnect(mqtt_client, userdata, flags, reason_code, properties):
     logger.warning('Disconnected from MQTT broker: %s', reason_code)
+
+
+def use_tls(args: argparse.Namespace) -> bool:
+    return bool(args.mqtt_tls or args.mqtt_ca_file or args.mqtt_cert_file)
+
+
+def create_client(args: argparse.Namespace) -> mqtt.Client:
+    """Create a client according to the command line arguments, ready to connect to the broker."""
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client.username_pw_set(args.mqtt_username, args.mqtt_password)
+    if use_tls(args):
+        client.tls_set(ca_certs=args.mqtt_ca_file, certfile=args.mqtt_cert_file, keyfile=args.mqtt_key_file)
+        if args.mqtt_tls_insecure:
+            client.tls_insecure_set(True)
+    client.user_data_set({'mdb_filename': args.mdb_filename,
+                          'topics': args.mqtt_subscribe_topic,
+                          'qos': args.mqtt_qos,
+                          'write_value_kwargs': {'only_if_value_changed': True,
+                                                 'max_age_seconds': args.max_age_seconds,
+                                                 }
+                          }
+                         )
+    client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
+    client.on_message = on_message
+    return client
+
+
+def broker_port(args: argparse.Namespace) -> int:
+    if args.mqtt_broker_port is not None:
+        return args.mqtt_broker_port
+    return 8883 if use_tls(args) else 1883
 
 
 if __name__ == '__main__':
@@ -208,22 +240,11 @@ if __name__ == '__main__':
     setup_logging(logger, syslog=args.syslog, loglevel=args.loglevel)
     setup_logging(logging.getLogger('lmdb_sensor_storage.db'), syslog=args.syslog, loglevel=args.loglevel)
 
-    logger.debug('Starting with parameters %s', args.__dict__)
+    logger.debug('Starting with parameters %s',
+                 {key: '***' if key == 'mqtt_password' and val else val for key, val in args.__dict__.items()})
 
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    client.username_pw_set(args.mqtt_username, args.mqtt_password)
-    client.user_data_set({'mdb_filename': args.mdb_filename,
-                          'topics': args.mqtt_subscribe_topic,
-                          'write_value_kwargs': {'only_if_value_changed': True,
-                                                 'max_age_seconds': args.max_age_seconds,
-                                                 }
-                          }
-                         )
-    client.on_connect = on_connect
-    client.on_disconnect = on_disconnect
-    client.on_message = on_message
-
-    res = client.connect(host=args.mqtt_broker, port=args.mqtt_broker_port)
+    client = create_client(args)
+    res = client.connect(host=args.mqtt_broker, port=broker_port(args))
     if res != mqtt.MQTT_ERR_SUCCESS:
         raise RuntimeError(f'MQTT connection error {res}')
 

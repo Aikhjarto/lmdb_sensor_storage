@@ -11,11 +11,31 @@ def add_mqtt(g):
     g.add_argument('--mqtt-broker', type=str, default='localhost',
                    help="Hostname or IP of the MQTT broker")
 
-    g.add_argument('--mqtt-broker-port', type=int, default=1883)
+    g.add_argument('--mqtt-broker-port', type=int, default=None,
+                   help='Port of the MQTT broker, default is 8883 with TLS and 1883 without')
 
     g.add_argument('--mqtt-username', type=str, default=None)
 
     g.add_argument('--mqtt-password', type=str, default=None)
+
+    g.add_argument('--mqtt-qos', type=int, choices=(0, 1, 2), default=1,
+                   help='Quality of service for subscriptions. Default 1 ensures that messages are delivered '
+                        'at least once while connected.')
+
+    g.add_argument('--mqtt-tls', action='store_true', default=False,
+                   help='Connect via TLS. Implied by --mqtt-ca-file and --mqtt-cert-file.')
+
+    g.add_argument('--mqtt-ca-file', type=str, default=None,
+                   help='CA certificates to verify the broker, default are the CAs of the system')
+
+    g.add_argument('--mqtt-cert-file', type=str, default=None,
+                   help='Client certificate for authentication via TLS')
+
+    g.add_argument('--mqtt-key-file', type=str, default=None,
+                   help='Private key of the client certificate')
+
+    g.add_argument('--mqtt-tls-insecure', action='store_true', default=False,
+                   help='Do not verify the hostname of the broker against its certificate')
 
 
 def add_logging(g):
