@@ -97,7 +97,7 @@ class TestcaseSensor(EmptyDatabaseMixin, unittest.TestCase):
             s.items(decimate_to_s=7, timestamp_chunker=timestamp_chunker_center, value_chunker=value_chunker_mean),
             [(cd[0] + (cd[-1] - cd[0]) / 2, np.mean(cv)) for cd, cv in chunks])
 
-        self.assertEqual(s.items(limit=7), list(zip(dates[:8], values[:8])))
+        self.assertEqual(s.items(limit=7), list(zip(dates[:7], values[:7])))
         d = []
         v = []
         for cd, cv in chunks:

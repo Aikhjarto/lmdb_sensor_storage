@@ -177,7 +177,7 @@ class TimestampBytesDB(LMDBDict):
                                 raise NotImplementedError
                             count += 1
 
-                            if c.next() and (limit is None or count <= limit):
+                            if c.next() and (limit is None or count < limit):
                                 key = c.key()
                                 key_unpacked = self._key_packer.unpack(key)
                             else:
