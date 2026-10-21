@@ -221,8 +221,8 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(200, req.status_code)
 
         # selected sensors, and decimation, which is not part of the form
-        self.assertIn('<option name="sensor1" selected>sensor1</option>', req.text)
-        self.assertIn('<option name="sensor2">sensor2</option>', req.text)
+        self.assertIn('<option value="sensor1" selected>sensor1</option>', req.text)
+        self.assertIn('<option value="sensor2">sensor2</option>', req.text)
         self.assertIn('<input type="hidden" name="decimate_to_s" value="60.0">', req.text)
 
         # note forms return to the current view
@@ -232,7 +232,7 @@ class UnitTests(unittest.TestCase):
 
         # without selection, all sensors are shown
         req = requests.request('GET', f'{self.base_url}/time', params={'since': params['since']}, timeout=10)
-        self.assertIn('<option name="sensor2" selected>sensor2</option>', req.text)
+        self.assertIn('<option value="sensor2" selected>sensor2</option>', req.text)
 
     def test_note_returns_to_view(self):
         req = self.post('/time?since=2024-01-01T00%3A00&sensor_name=sensor1', {'short': 'note'})

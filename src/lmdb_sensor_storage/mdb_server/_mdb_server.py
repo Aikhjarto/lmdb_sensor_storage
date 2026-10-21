@@ -430,9 +430,9 @@ class MDBRequestHandler(HTTPRequestHandler):
             for sensor_name in self.server.sensor_storage.keys():
                 sensor_name_html = escape(sensor_name)
                 if not sensor_names or sensor_name in sensor_names:
-                    options_sensors.append(f'<option name="{sensor_name_html}" selected>{sensor_name_html}</option>')
+                    options_sensors.append(f'<option value="{sensor_name_html}" selected>{sensor_name_html}</option>')
                 else:
-                    options_sensors.append(f'<option name="{sensor_name_html}">{sensor_name_html}</option>')
+                    options_sensors.append(f'<option value="{sensor_name_html}">{sensor_name_html}</option>')
 
             # keep parameters, which are not part of the form
             hidden_inputs = []
