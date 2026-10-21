@@ -95,12 +95,12 @@ class MDBRequestHandler(HTTPRequestHandler):
 <div id="div_date">
     <div id="div_since">
     <label for="since">Start date:</label>
-    <input type="datetime-local" id="since" name="since" value="{since}">
+    <input type="datetime-local" id="since" name="since" value="{since}" step="1">
     </div>
 
     <div id="div_until">
     <label for="until">End date:</label>
-    <input type="datetime-local" id="until" name="until" value="{until}">
+    <input type="datetime-local" id="until" name="until" value="{until}" step="1">
     </div>
 
     <div id="div_samples">
@@ -449,12 +449,13 @@ class MDBRequestHandler(HTTPRequestHandler):
                 tb = traceback.format_exc()
                 div_plot = f'<div>{escape(f"{e} {tb}")}</div>'
             # update HTML form data
-            since = kwargs['since'].isoformat()[:16]
+            # Note: use seconds, since with minutes, re-submitting the form would exclude the current minute
+            since = kwargs['since'].isoformat(timespec='seconds')
 
             if 'until' in kwargs:
-                until = kwargs['until'].isoformat()[:16]
+                until = kwargs['until'].isoformat(timespec='seconds')
             else:
-                until = datetime.datetime.now().isoformat()[:16]
+                until = datetime.datetime.now().isoformat(timespec='seconds')
 
             # range select form
             options = []
@@ -475,14 +476,16 @@ class MDBRequestHandler(HTTPRequestHandler):
                     options_sensors.append(f'<option name="{sensor_name_html}">{sensor_name_html}</option>')
 
             range_select_form = \
-                self.html_range_select_form_template.format(since=since[:16],
-                                                            until=until[:16],
+                self.html_range_select_form_template.format(since=since,
+                                                            until=until,
                                                             options=options,
                                                             sensor_select_options='\n'.join(options_sensors),
                                                             multiselect_height=min(10, len(options_sensors)))
             # delete note form
             options = []
-            for t_isoformat, val in self.server.sensor_storage.notes.items(since=since, until=until):
+            for t_isoformat, val in self.server.sensor_storage.notes.items(since=kwargs['since'],
+                                                                           until=kwargs.get('until'),
+                                                                           endpoint=True):
                 options.append(f'<option value="{escape(str(t_isoformat))}">'
                                f'{escape(str(t_isoformat))}; {escape(val["short"])}</option>')
             delete_note_form = self.html_delete_note_form_template.format(options='\n'.join(options))

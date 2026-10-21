@@ -273,6 +273,17 @@ class UnitTests(unittest.TestCase):
         self.assertEqual('RuntimeError: broken', req.json()['error'])
         self.assertIn('Traceback', req.json()['explain'])
 
+    def test_current_minute(self):
+        # a note in the current minute is listed
+        now = datetime.datetime.now()
+        Notes(self.mdb_filename).add_note('current', timestamp=now)
+        req = requests.request('GET', f'{self.base_url}/now', timeout=10)
+        self.assertEqual(200, req.status_code)
+        self.assertIn(f'{now}; current</option>', req.text)
+
+        # the time range form keeps seconds, so re-submitting it does not cut off the current minute
+        self.assertRegex(req.text, r'id="until" name="until" value="\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d"')
+
     def test_html_escaping(self):
         payload = '</script><img src=x onerror=alert(1)>'
         s = Sensor(mdb_filename=self.mdb_filename, sensor_name=payload, data_format='f')
