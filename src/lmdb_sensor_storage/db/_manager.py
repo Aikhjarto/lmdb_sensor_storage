@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import logging
 import os
 import threading
@@ -92,6 +93,38 @@ class _Transaction:
         self._release()
 
 
+class _BatchTransaction:
+    """
+    View of the write transaction of a batch for one database. It is used like a transaction, but leaving its context
+    does not commit, since the batch is committed at its end.
+    """
+
+    def __init__(self, txn: lmdb.Transaction, db):
+        self._txn = txn
+        self._db = db
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def cursor(self, db=None):
+        return self._txn.cursor(db=self._db if db is None else db)
+
+    def get(self, key, default=None, db=None):
+        return self._txn.get(key, default, db=self._db if db is None else db)
+
+    def put(self, key, value, *args, db=None, **kwargs):
+        return self._txn.put(key, value, *args, db=self._db if db is None else db, **kwargs)
+
+    def stat(self, db=None):
+        return self._txn.stat(self._db if db is None else db)
+
+    def drop(self, db, delete=True):
+        return self._txn.drop(db, delete)
+
+
 class Manager:
     """
     Some functionality of lmdb is not thread-safe [1], e.g, and env.open_dB should be called only by one thread and
@@ -133,6 +166,8 @@ class Manager:
         self._lock = threading.RLock()
         # held by transactions, which become invalid when their environment is reopened
         self._reopen_lock = _ReopenLock()
+        # write transactions of batches, per thread and file
+        self._batches = threading.local()
 
     def get_environment(self, mdb_filename, **kwargs):
         """
@@ -200,6 +235,9 @@ class Manager:
         cached = self._dbs.get((mdb_filename, db_name))
         if cached is not None:
             return cached
+        batch = self._get_batch(mdb_filename)
+        if batch is not None:
+            return self._open_db_in_batch(mdb_filename, db_name, create, batch)
         with self._lock:
             env = self.get_environment(mdb_filename)
             while True:
@@ -284,6 +322,10 @@ class Manager:
     def _begin(self, mdb_filename, env: lmdb.Environment, **kwargs):
         """Returns a transaction of `env`, or None, if `env` was reopened meanwhile."""
         mdb_filename = os.path.realpath(mdb_filename)
+        batch = self._get_batch(mdb_filename)
+        if batch is not None:
+            # reads and writes within a batch use its transaction, so reads see the writes of the batch
+            return _BatchTransaction(batch['txn'], kwargs.get('db'))
         self._reopen_lock.acquire_shared()
         try:
             if self.handles.get(mdb_filename) is not env:
@@ -295,6 +337,49 @@ class Manager:
         except BaseException:
             self._reopen_lock.release_shared()
             raise
+
+    def _get_batch(self, mdb_filename):
+        return getattr(self._batches, 'files', {}).get(mdb_filename)
+
+    def _open_db_in_batch(self, mdb_filename, db_name, create, batch):
+        """Open a database with the transaction of the batch, since opening it with another write transaction would
+        wait for the batch, which holds the writer lock of lmdb."""
+        env = self.handles[mdb_filename]
+        db = env.open_db(db_name.encode(), txn=batch['txn'], create=create)
+        with self._lock:
+            self._dbs[(mdb_filename, db_name)] = env, db
+        batch['opened_dbs'].append((mdb_filename, db_name))
+        return env, db
+
+    @contextmanager
+    def write_batch(self, mdb_filename):
+        """
+        All transactions of databases of `mdb_filename` in the current thread within this context use one write
+        transaction, which is committed at the end of the context, or aborted on an exception.
+        Committing once instead of for each write reduces the pages written, since pages written by each commit, like
+        the free list and the meta page, are written only once.
+        Batches can be nested, inner batches are part of the outer one.
+        """
+        mdb_filename = os.path.realpath(mdb_filename)
+        if self._get_batch(mdb_filename) is not None:
+            yield
+            return
+        txn = self.begin(mdb_filename, write=True)
+        files = getattr(self._batches, 'files', {})
+        self._batches.files = files
+        batch = files[mdb_filename] = {'txn': txn._txn, 'opened_dbs': []}
+        try:
+            yield
+        except BaseException:
+            del files[mdb_filename]
+            txn.__exit__(lmdb.Error, None, None)  # aborts and releases the reopen lock
+            # databases opened by an aborted transaction are closed by lmdb
+            with self._lock:
+                for key in batch['opened_dbs']:
+                    self._dbs.pop(key, None)
+            raise
+        del files[mdb_filename]
+        txn.__exit__(None, None, None)  # commits and releases the reopen lock
 
     def db_exists(self, mdb_filename, db_name):
         """

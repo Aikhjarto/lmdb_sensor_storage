@@ -2,6 +2,8 @@
 import paho.mqtt.client as mqtt
 from datetime import datetime, timezone
 from lmdb_sensor_storage.db.sensor_db import Sensor
+# noinspection PyProtectedMember
+from lmdb_sensor_storage.db._manager import manager
 import json
 import argparse
 import lmdb
@@ -191,13 +193,16 @@ def on_message(mqtt_client, userdata, message):
     """Store a message; skip a malformed message or a value that does not fit the sensor's type, e.g.
     'unavailable' or 'unknown' from Home Assistant, instead of crashing.
     Database errors are raised, since they will not go away by skipping messages."""
-    try:
-        _on_message(mqtt_client, userdata, message)
-    except lmdb.Error:
-        raise
-    except Exception:
-        logger.exception("skipping message on topic '%s' with payload '%s'",
-                         message.topic, message.payload[:100])
+    # Write all values of a message in one transaction, which writes much less to disk than a transaction per value.
+    # An lmdb error aborts it, values written before other errors are committed.
+    with manager.write_batch(userdata['mdb_filename']):
+        try:
+            _on_message(mqtt_client, userdata, message)
+        except lmdb.Error:
+            raise
+        except Exception:
+            logger.exception("skipping message on topic '%s' with payload '%s'",
+                             message.topic, message.payload[:100])
 
 
 def on_connect(mqtt_client, userdata, flags, reason_code, properties):

@@ -346,6 +346,23 @@ class TestOnMessage(EmptyDatabaseMixin, unittest.TestCase):
         self.assertEqual(['kitchen_BME280_Temperature', 'tele/garage/SENSORS', 'tele/home/garage/SENSOR'],
                          sorted(LMDBSensorStorage(self.mdb_filename).keys()))
 
+    def last_txnid(self):
+        return manager.get_environment(self.mdb_filename).info()['last_txnid']
+
+    def test_message_in_one_transaction(self):
+        self.on_message('test/value', '1.0')  # create the file
+        txnid = self.last_txnid()
+        self.on_message('tele/kitchen/SENSOR', '{"Time": "2024-01-01T00:00:00", "BME280": {"Temperature": 23.6, '
+                                               '"Humidity": 34.5}, "MHZ19B": {"CarbonDioxide": 645}}')
+        self.assertEqual(txnid + 1, self.last_txnid())
+        self.assertEqual(4, len(LMDBSensorStorage(self.mdb_filename).keys()))
+
+    def test_values_before_an_invalid_value_are_stored(self):
+        with self.assertLogs('lmdb_sensor_storage.mqtt_subscriber', level='ERROR'):
+            self.on_message('tele/kitchen/SENSOR', '{"Time": "2024-01-01T00:00:00", "BME280": {"Temperature": 23.6}, '
+                                                   '"DS18B20-1": {"Id": "A", "Temperature": "invalid"}}')
+        self.assertEqual(['kitchen_BME280_Temperature'], LMDBSensorStorage(self.mdb_filename).keys())
+
     def test_invalid_json_is_logged(self):
         for topic in ('tele/kitchen/SENSOR', 'heizung/abc/history'):
             with self.subTest(topic=topic):

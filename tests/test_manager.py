@@ -7,7 +7,7 @@ import unittest
 from unittest import mock
 import lmdb
 from . import EmptyDatabaseMixin, assert_no_logs
-from lmdb_sensor_storage import LMDBSensorStorage
+from lmdb_sensor_storage import LMDBSensorStorage, Sensor
 # noinspection PyProtectedMember
 from lmdb_sensor_storage.db._manager import manager
 from datetime import datetime, timezone
@@ -92,6 +92,34 @@ class TestManager(EmptyDatabaseMixin, unittest.TestCase):
         flags = manager.get_environment(self.mdb_filename).flags()
         self.assertFalse(flags['readahead'])
         self.assertFalse(flags['metasync'])
+
+    def last_txnid(self):
+        return manager.get_environment(self.mdb_filename).info()['last_txnid']
+
+    def test_write_batch(self):
+        txnid = self.last_txnid()
+        with manager.write_batch(self.mdb_filename):
+            Sensor(self.mdb_filename, 'a').write_value(datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0)
+            Sensor(self.mdb_filename, 'b').write_value(datetime(2024, 1, 1, tzinfo=timezone.utc), 2.0)
+            # reads see the writes of the batch, e.g. the format of a new sensor
+            self.assertEqual('f', Sensor(self.mdb_filename, 'a').data_format)
+            self.assertEqual([2.0], Sensor(self.mdb_filename, 'b').values())
+            with manager.write_batch(self.mdb_filename):  # nested
+                Sensor(self.mdb_filename, 'a').write_value(datetime(2024, 1, 2, tzinfo=timezone.utc), 3.0)
+        # one commit for everything
+        self.assertEqual(txnid + 1, self.last_txnid())
+        self.assertEqual(['a', 'b'], sorted(LMDBSensorStorage(self.mdb_filename).keys()))
+        self.assertEqual([1.0, 3.0], Sensor(self.mdb_filename, 'a').values())
+
+    def test_write_batch_aborted(self):
+        with self.assertRaises(RuntimeError):
+            with manager.write_batch(self.mdb_filename):
+                Sensor(self.mdb_filename, 'a').write_value(datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0)
+                raise RuntimeError
+        self.assertEqual([], LMDBSensorStorage(self.mdb_filename).keys())
+        # databases opened by the aborted batch can be created again
+        Sensor(self.mdb_filename, 'a').write_value(datetime(2024, 1, 1, tzinfo=timezone.utc), 1.0)
+        self.assertEqual([1.0], Sensor(self.mdb_filename, 'a').values())
 
     def test_stale_readers_are_cleared(self):
         self.create_dbs(1)
